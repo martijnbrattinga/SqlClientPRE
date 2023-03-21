@@ -6066,7 +6066,10 @@ namespace Microsoft.Data.SqlClient
                              || columnEncryptionOverride == SqlCommandColumnEncryptionSetting.ResultSetOnly
                              || (columnEncryptionOverride == SqlCommandColumnEncryptionSetting.UseConnectionSetting
                                 && _connHandler != null && _connHandler.ConnectionOptions != null
-                                && _connHandler.ConnectionOptions.ColumnEncryptionSetting == SqlConnectionColumnEncryptionSetting.Enabled)))
+                                && _connHandler.ConnectionOptions.ColumnEncryptionSetting == SqlConnectionColumnEncryptionSetting.Enabled &&
+                                (_connHandler.ConnectionOptions.ColumnEncryptionPRESetting != SqlConnectionColumnEncryptionPRESetting.Backward 
+                                && _connHandler.ConnectionOptions.ColumnEncryptionPRESetting != SqlConnectionColumnEncryptionPRESetting.Bidirectional
+                                ))))
                     {
                         try
                         {
