@@ -63,6 +63,7 @@ namespace Microsoft.Data.SqlClient
             ConnectRetryCount,
             ConnectRetryInterval,
             ColumnEncryptionSetting,
+            ColumnEncryptionPRESetting,
             EnclaveAttestationUrl,
             AttestationProtocol,
             CommandTimeout,
@@ -125,6 +126,7 @@ namespace Microsoft.Data.SqlClient
         private bool _userInstance = DbConnectionStringDefaults.UserInstance;
         private SqlAuthenticationMethod _authentication = DbConnectionStringDefaults.Authentication;
         private SqlConnectionColumnEncryptionSetting _columnEncryptionSetting = DbConnectionStringDefaults.ColumnEncryptionSetting;
+        private SqlConnectionColumnEncryptionPRESetting _columnEncryptionPRESetting = DbConnectionStringDefaults.ColumnEncryptionPRESetting;
         private string _enclaveAttestationUrl = DbConnectionStringDefaults.EnclaveAttestationUrl;
         private SqlConnectionAttestationProtocol _attestationProtocol = DbConnectionStringDefaults.AttestationProtocol;
         private SqlConnectionIPAddressPreference _ipAddressPreference = DbConnectionStringDefaults.IPAddressPreference;
@@ -306,6 +308,9 @@ namespace Microsoft.Data.SqlClient
 
         private static SqlConnectionColumnEncryptionSetting ConvertToColumnEncryptionSetting(string keyword, object value)
             => DbConnectionStringBuilderUtil.ConvertToColumnEncryptionSetting(keyword, value);
+
+        private static SqlConnectionColumnEncryptionPRESetting ConvertToColumnEncryptionPRESetting(string keyword, object value)
+            => DbConnectionStringBuilderUtil.ConvertToColumnEncryptionPRESetting(keyword, value);
 
         private static SqlConnectionAttestationProtocol ConvertToAttestationProtocol(string keyword, object value)
             => DbConnectionStringBuilderUtil.ConvertToAttestationProtocol(keyword, value);
@@ -606,6 +611,12 @@ namespace Microsoft.Data.SqlClient
         {
             Debug.Assert(DbConnectionStringBuilderUtil.IsValidColumnEncryptionSetting(value), "Invalid value for SqlConnectionColumnEncryptionSetting");
             base[DbConnectionStringKeywords.ColumnEncryptionSetting] = DbConnectionStringBuilderUtil.ColumnEncryptionSettingToString(value);
+        }
+
+        private void SetColumnEncryptionPRESettingValue(SqlConnectionColumnEncryptionPRESetting value)
+        {
+            Debug.Assert(DbConnectionStringBuilderUtil.IsValidColumnEncryptionPRESetting(value), "Invalid value for SqlConnectionColumnEncryptionPRESetting");
+            base[DbConnectionStringKeywords.ColumnEncryptionPRESetting] = DbConnectionStringBuilderUtil.ColumnEncryptionPRESettingToString(value);
         }
 
         private void SetAttestationProtocolValue(SqlConnectionAttestationProtocol value)
@@ -1303,6 +1314,27 @@ namespace Microsoft.Data.SqlClient
 
                 SetColumnEncryptionSettingValue(value);
                 _columnEncryptionSetting = value;
+            }
+        }
+
+        [DisplayName(DbConnectionStringKeywords.ColumnEncryptionPRESetting)]
+        [ResCategory(StringsHelper.ResourceNames.DataCategory_Security)]
+        //[ResDescription(StringsHelper.ResourceNames.TCE_DbConnectionString_ColumnEncryptionPRESetting)]
+        [RefreshProperties(RefreshProperties.All)]
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public SqlConnectionColumnEncryptionPRESetting ColumnEncryptionPRESetting
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+        {
+            get => _columnEncryptionPRESetting;
+            set
+            {
+                if (!DbConnectionStringBuilderUtil.IsValidColumnEncryptionPRESetting(value))
+                {
+                    throw ADP.InvalidEnumerationValue(typeof(SqlConnectionColumnEncryptionPRESetting), (int)value);
+                }
+
+                SetColumnEncryptionPRESettingValue(value);
+                _columnEncryptionPRESetting = value;
             }
         }
 

@@ -157,6 +157,7 @@ namespace Microsoft.Data.SqlClient
         public SqlConnection(string connectionString) : this()
         {
             ConnectionString = connectionString;    // setting connection string first so that ConnectionOption is available
+            Console.WriteLine("added print statement in SqlConnection line 160");
         }
 
         /// <include file='../../../../../../../doc/snippets/Microsoft.Data.SqlClient/SqlConnection.xml' path='docs/members[@name="SqlConnection"]/ctorConnectionStringCredential/*' />
@@ -297,6 +298,20 @@ namespace Microsoft.Data.SqlClient
             {
                 SqlConnectionString opt = (SqlConnectionString)ConnectionOptions;
                 return opt?.ColumnEncryptionSetting == SqlConnectionColumnEncryptionSetting.Enabled;
+            }
+        }
+
+        /// <summary>
+        /// Is this connection using column encryption PRE?
+        /// </summary>
+        internal bool IsColumnEncryptionPRESettingEnabled
+        {
+            get
+            {
+                SqlConnectionString opt = (SqlConnectionString)ConnectionOptions;
+                return opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Forward ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional;
             }
         }
 

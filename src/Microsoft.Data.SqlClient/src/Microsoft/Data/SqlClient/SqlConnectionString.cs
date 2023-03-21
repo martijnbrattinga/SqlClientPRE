@@ -58,6 +58,7 @@ namespace Microsoft.Data.SqlClient
             internal const int Connect_Retry_Interval = DbConnectionStringDefaults.ConnectRetryInterval;
             internal const string EnclaveAttestationUrl = DbConnectionStringDefaults.EnclaveAttestationUrl;
             internal const SqlConnectionColumnEncryptionSetting ColumnEncryptionSetting = DbConnectionStringDefaults.ColumnEncryptionSetting;
+            internal const SqlConnectionColumnEncryptionPRESetting ColumnEncryptionPRESetting = DbConnectionStringDefaults.ColumnEncryptionPRESetting;
             internal static readonly SqlAuthenticationMethod Authentication = DbConnectionStringDefaults.Authentication;
             internal static readonly SqlConnectionAttestationProtocol AttestationProtocol = DbConnectionStringDefaults.AttestationProtocol;
             internal static readonly SqlConnectionIPAddressPreference IpAddressPreference = DbConnectionStringDefaults.IPAddressPreference;
@@ -82,6 +83,7 @@ namespace Microsoft.Data.SqlClient
             internal const string AttachDBFilename = DbConnectionStringKeywords.AttachDBFilename;
             internal const string PoolBlockingPeriod = DbConnectionStringKeywords.PoolBlockingPeriod;
             internal const string ColumnEncryptionSetting = DbConnectionStringKeywords.ColumnEncryptionSetting;
+            internal const string ColumnEncryptionPRESetting = DbConnectionStringKeywords.ColumnEncryptionPRESetting;
             internal const string EnclaveAttestationUrl = DbConnectionStringKeywords.EnclaveAttestationUrl;
             internal const string AttestationProtocol = DbConnectionStringKeywords.AttestationProtocol;
             internal const string IPAddressPreference = DbConnectionStringKeywords.IPAddressPreference;
@@ -252,6 +254,7 @@ namespace Microsoft.Data.SqlClient
         private readonly bool _multiSubnetFailover;
         private readonly SqlAuthenticationMethod _authType;
         private readonly SqlConnectionColumnEncryptionSetting _columnEncryptionSetting;
+        private readonly SqlConnectionColumnEncryptionPRESetting _columnEncryptionPRESetting;
         private readonly string _enclaveAttestationUrl;
         private readonly SqlConnectionAttestationProtocol _attestationProtocol;
         private readonly SqlConnectionIPAddressPreference _ipAddressPreference;
@@ -341,6 +344,7 @@ namespace Microsoft.Data.SqlClient
             _trustServerCertificate = ConvertValueToBoolean(KEY.TrustServerCertificate, DEFAULT.TrustServerCertificate);
             _authType = ConvertValueToAuthenticationType();
             _columnEncryptionSetting = ConvertValueToColumnEncryptionSetting();
+            _columnEncryptionPRESetting = ConvertValueToColumnEncryptionPRESetting();
             _enclaveAttestationUrl = ConvertValueToString(KEY.EnclaveAttestationUrl, DEFAULT.EnclaveAttestationUrl);
             _attestationProtocol = ConvertValueToAttestationProtocol();
             _ipAddressPreference = ConvertValueToIPAddressPreference();
@@ -733,6 +737,7 @@ namespace Microsoft.Data.SqlClient
         internal bool MultiSubnetFailover => _multiSubnetFailover;
         internal SqlAuthenticationMethod Authentication => _authType;
         internal SqlConnectionColumnEncryptionSetting ColumnEncryptionSetting => _columnEncryptionSetting;
+        internal SqlConnectionColumnEncryptionPRESetting ColumnEncryptionPRESetting => _columnEncryptionPRESetting;
         internal string EnclaveAttestationUrl => _enclaveAttestationUrl;
         internal SqlConnectionAttestationProtocol AttestationProtocol => _attestationProtocol;
         internal SqlConnectionIPAddressPreference IPAddressPreference => _ipAddressPreference;
@@ -866,6 +871,7 @@ namespace Microsoft.Data.SqlClient
                     { KEY.TransactionBinding, KEY.TransactionBinding },
                     { KEY.Type_System_Version, KEY.Type_System_Version },
                     { KEY.ColumnEncryptionSetting, KEY.ColumnEncryptionSetting },
+                    { KEY.ColumnEncryptionPRESetting, KEY.ColumnEncryptionPRESetting },
                     { KEY.EnclaveAttestationUrl, KEY.EnclaveAttestationUrl },
                     { KEY.AttestationProtocol, KEY.AttestationProtocol},
                     { KEY.User_ID, KEY.User_ID },
@@ -1070,6 +1076,31 @@ namespace Microsoft.Data.SqlClient
             catch (OverflowException e)
             {
                 throw ADP.InvalidConnectionOptionValue(KEY.ColumnEncryptionSetting, e);
+            }
+        }
+
+        /// <summary>
+        /// Convert the value to SqlConnectionColumnEncryptionPRESetting.
+        /// </summary>
+        /// <returns></returns>
+        internal SqlConnectionColumnEncryptionPRESetting ConvertValueToColumnEncryptionPRESetting()
+        {
+            if (!TryGetParsetableValue(KEY.ColumnEncryptionPRESetting, out string value))
+            {
+                return DEFAULT.ColumnEncryptionPRESetting;
+            }
+
+            try
+            {
+                return DbConnectionStringBuilderUtil.ConvertToColumnEncryptionPRESetting(KEY.ColumnEncryptionPRESetting, value);
+            }
+            catch (FormatException e)
+            {
+                throw ADP.InvalidConnectionOptionValue(KEY.ColumnEncryptionPRESetting, e);
+            }
+            catch (OverflowException e)
+            {
+                throw ADP.InvalidConnectionOptionValue(KEY.ColumnEncryptionPRESetting, e);
             }
         }
 

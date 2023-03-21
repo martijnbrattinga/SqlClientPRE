@@ -1145,6 +1145,27 @@ namespace Microsoft.Data.SqlClient
         Enabled,
     }
 
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+    public enum SqlConnectionColumnEncryptionPRESetting
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+    {
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        Disabled,
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        Forward,
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        Backward,
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        Bidirectional
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+    }
+
     /// <include file='../../../../../../doc/snippets/Microsoft.Data.SqlClient/SqlConnectionOverrides.xml' path='docs/members[@name="SqlConnectionOverrides"]/SqlConnectionOverrides/*' />
     [Flags]
     public enum SqlConnectionOverrides

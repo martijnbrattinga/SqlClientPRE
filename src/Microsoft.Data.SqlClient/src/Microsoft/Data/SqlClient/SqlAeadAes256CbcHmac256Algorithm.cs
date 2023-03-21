@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Microsoft.Data.SqlClient
 {
@@ -392,6 +393,8 @@ namespace Microsoft.Data.SqlClient
                 // Return the provider to the pool.
                 _cryptoProviderPool.Enqueue(aesAlg);
             }
+
+            Console.WriteLine("MartijnPrint DecryptData with IV " + Convert.ToBase64String(iv) + " and ciphertext " + Convert.ToBase64String(cipherText) + " to plaintext " + Convert.ToBase64String(plainText));
 
             return plainText;
         }

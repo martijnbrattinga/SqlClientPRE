@@ -487,6 +487,44 @@ namespace Microsoft.Data.Common
         }
 
         /// <summary>
+        /// Convert a string value to the corresponding SqlConnectionColumnEncryptionPRESetting.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="result"></param>
+        /// <returns></returns>
+        internal static bool TryConvertToColumnEncryptionPRESetting(string value, out SqlConnectionColumnEncryptionPRESetting result)
+        {
+            bool isSuccess = false;
+
+            if (StringComparer.InvariantCultureIgnoreCase.Equals(value, nameof(SqlConnectionColumnEncryptionPRESetting.Forward)))
+            {
+                result = SqlConnectionColumnEncryptionPRESetting.Forward;
+                isSuccess = true;
+            }
+            else if (StringComparer.InvariantCultureIgnoreCase.Equals(value, nameof(SqlConnectionColumnEncryptionPRESetting.Backward)))
+            {
+                result = SqlConnectionColumnEncryptionPRESetting.Backward;
+                isSuccess = true;
+            }
+            else if (StringComparer.InvariantCultureIgnoreCase.Equals(value, nameof(SqlConnectionColumnEncryptionPRESetting.Bidirectional)))
+            {
+                result = SqlConnectionColumnEncryptionPRESetting.Bidirectional;
+                isSuccess = true;
+            }
+            else if (StringComparer.InvariantCultureIgnoreCase.Equals(value, nameof(SqlConnectionColumnEncryptionPRESetting.Disabled)))
+            {
+                result = SqlConnectionColumnEncryptionPRESetting.Disabled;
+                isSuccess = true;
+            }
+            else
+            {
+                result = DbConnectionStringDefaults.ColumnEncryptionPRESetting;
+            }
+
+            return isSuccess;
+        }
+
+        /// <summary>
         /// Is it a valid connection level column encryption setting ?
         /// </summary>
         /// <param name="value"></param>
@@ -495,6 +533,17 @@ namespace Microsoft.Data.Common
         {
             Debug.Assert(Enum.GetNames(typeof(SqlConnectionColumnEncryptionSetting)).Length == 2, "SqlConnectionColumnEncryptionSetting enum has changed, update needed");
             return value == SqlConnectionColumnEncryptionSetting.Enabled || value == SqlConnectionColumnEncryptionSetting.Disabled;
+        }
+
+        /// <summary>
+        /// Is it a valid connection level column encryption PRE setting ?
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        internal static bool IsValidColumnEncryptionPRESetting(SqlConnectionColumnEncryptionPRESetting value)
+        {
+            Debug.Assert(Enum.GetNames(typeof(SqlConnectionColumnEncryptionPRESetting)).Length == 2, "SqlConnectionColumnEncryptionPRESetting enum has changed, update needed");
+            return value == SqlConnectionColumnEncryptionPRESetting.Forward || value == SqlConnectionColumnEncryptionPRESetting.Backward || value == SqlConnectionColumnEncryptionPRESetting.Bidirectional ||  value == SqlConnectionColumnEncryptionPRESetting.Disabled;
         }
 
         /// <summary>
@@ -510,6 +559,25 @@ namespace Microsoft.Data.Common
             {
                 SqlConnectionColumnEncryptionSetting.Enabled => nameof(SqlConnectionColumnEncryptionSetting.Enabled),
                 SqlConnectionColumnEncryptionSetting.Disabled => nameof(SqlConnectionColumnEncryptionSetting.Disabled),
+                _ => null,
+            };
+        }
+
+        /// <summary>
+        /// Convert connection level column encryption PRE setting value to string.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        internal static string ColumnEncryptionPRESettingToString(SqlConnectionColumnEncryptionPRESetting value)
+        {
+            Debug.Assert(IsValidColumnEncryptionPRESetting(value), "value is not a valid connection level column encryption PRE setting.");
+
+            return value switch
+            {
+                SqlConnectionColumnEncryptionPRESetting.Forward => nameof(SqlConnectionColumnEncryptionPRESetting.Forward),
+                SqlConnectionColumnEncryptionPRESetting.Backward => nameof(SqlConnectionColumnEncryptionPRESetting.Backward),
+                SqlConnectionColumnEncryptionPRESetting.Bidirectional => nameof(SqlConnectionColumnEncryptionPRESetting.Bidirectional),
+                SqlConnectionColumnEncryptionPRESetting.Disabled => nameof(SqlConnectionColumnEncryptionPRESetting.Disabled),
                 _ => null,
             };
         }
@@ -695,6 +763,83 @@ namespace Microsoft.Data.Common
                 }
             }
         }
+
+
+        /// <summary>
+        /// Convert the provided value to a SqlConnectionColumnEncryptionPRESetting.
+        /// </summary>
+        /// <param name="keyword"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        internal static SqlConnectionColumnEncryptionPRESetting ConvertToColumnEncryptionPRESetting(string keyword, object value)
+        {
+            if (null == value)
+            {
+                return DbConnectionStringDefaults.ColumnEncryptionPRESetting;
+            }
+
+            if (value is string sValue)
+            {
+                if (TryConvertToColumnEncryptionPRESetting(sValue, out SqlConnectionColumnEncryptionPRESetting result))
+                {
+                    return result;
+                }
+
+                // try again after remove leading & trailing whitespaces.
+                sValue = sValue.Trim();
+                if (TryConvertToColumnEncryptionPRESetting(sValue, out result))
+                {
+                    return result;
+                }
+
+                // string values must be valid
+                throw ADP.InvalidConnectionOptionValue(keyword);
+            }
+            else
+            {
+                // the value is not string, try other options
+                SqlConnectionColumnEncryptionPRESetting eValue;
+
+                if (value is SqlConnectionColumnEncryptionPRESetting setting)
+                {
+                    // quick path for the most common case
+                    eValue = setting;
+                }
+                else if (value.GetType().IsEnum)
+                {
+                    // explicitly block scenarios in which user tries to use wrong enum types, like:
+                    // builder["SqlConnectionColumnEncryptionSetting"] = EnvironmentVariableTarget.Process;
+                    // workaround: explicitly cast non-SqlConnectionColumnEncryptionSetting enums to int
+                    throw ADP.ConvertFailed(value.GetType(), typeof(SqlConnectionColumnEncryptionPRESetting), null);
+                }
+                else
+                {
+                    try
+                    {
+                        // Enum.ToObject allows only integral and enum values (enums are blocked above), raising ArgumentException for the rest
+                        eValue = (SqlConnectionColumnEncryptionPRESetting)Enum.ToObject(typeof(SqlConnectionColumnEncryptionPRESetting), value);
+                    }
+                    catch (ArgumentException e)
+                    {
+                        // to be consistent with the messages we send in case of wrong type usage, replace
+                        // the error with our exception, and keep the original one as inner one for troubleshooting
+                        throw ADP.ConvertFailed(value.GetType(), typeof(SqlConnectionColumnEncryptionPRESetting), e);
+                    }
+                }
+
+                // ensure value is in valid range
+                if (IsValidColumnEncryptionPRESetting(eValue))
+                {
+                    return eValue;
+                }
+                else
+                {
+                    throw ADP.InvalidEnumerationValue(typeof(SqlConnectionColumnEncryptionPRESetting), (int)eValue);
+                }
+            }
+        }
+
+
 
         #region <<AttestationProtocol Utility>>
         /// <summary>
@@ -988,6 +1133,7 @@ namespace Microsoft.Data.Common
         internal const int ConnectRetryInterval = 10;
         internal static readonly SqlAuthenticationMethod Authentication = SqlAuthenticationMethod.NotSpecified;
         internal const SqlConnectionColumnEncryptionSetting ColumnEncryptionSetting = SqlConnectionColumnEncryptionSetting.Disabled;
+        internal const SqlConnectionColumnEncryptionPRESetting ColumnEncryptionPRESetting = SqlConnectionColumnEncryptionPRESetting.Disabled;
         internal const string EnclaveAttestationUrl = "";
         internal const SqlConnectionAttestationProtocol AttestationProtocol = SqlConnectionAttestationProtocol.NotSpecified;
         internal const SqlConnectionIPAddressPreference IPAddressPreference = SqlConnectionIPAddressPreference.IPv4First;
@@ -1046,6 +1192,7 @@ namespace Microsoft.Data.Common
         internal const string ConnectRetryInterval = "Connect Retry Interval";
         internal const string Authentication = "Authentication";
         internal const string ColumnEncryptionSetting = "Column Encryption Setting";
+        internal const string ColumnEncryptionPRESetting = "Column Encryption PRE Setting";
         internal const string EnclaveAttestationUrl = "Enclave Attestation Url";
         internal const string AttestationProtocol = "Attestation Protocol";
         internal const string IPAddressPreference = "IP Address Preference";
