@@ -4119,6 +4119,7 @@ namespace Microsoft.Data.SqlClient
                             param.XmlSchemaCollectionOwningSchema,
                             param.XmlSchemaCollectionName
                         );
+                        paramCopy.PRE = param.PRE;
                         paramCopy.CompareInfo = param.CompareInfo;
                         paramCopy.TypeName = param.TypeName;
                         paramCopy.UdtTypeName = param.UdtTypeName;
@@ -5469,6 +5470,8 @@ namespace Microsoft.Data.SqlClient
                         {
                             Debug.Assert(_activeConnection != null, @"_activeConnection should not be null");
 
+                            Console.WriteLine("MartijnPrint: DecryptWithKey(value) called from SqlCommand.OnReturnValue; maybe do PRE logic here as well?");
+
                             // Get the key information from the parameter and decrypt the value.
                             rec.cipherMD.EncryptionInfo = thisParam.CipherMetadata.EncryptionInfo;
                             byte[] unencryptedBytes = SqlSecurityUtility.DecryptWithKey(rec.value.ByteArray, rec.cipherMD, _activeConnection, this);
@@ -6169,7 +6172,7 @@ namespace Microsoft.Data.SqlClient
                     paramList.Append('(');
 
                     // if using non unicode types, obtain the actual byte length from the parser, with it's associated code page
-                    if (mt.IsAnsiType)
+                    if (mt.IsAnsiType && !sqlParam.PRE)
                     {
                         object val = sqlParam.GetCoercedValue();
                         string s = null;

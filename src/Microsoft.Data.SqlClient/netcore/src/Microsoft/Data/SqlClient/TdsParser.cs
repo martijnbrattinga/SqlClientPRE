@@ -9394,29 +9394,36 @@ namespace Microsoft.Data.SqlClient
 
                 if (!isNull)
                 {
-                    try
+                    if (param.PRE)
                     {
-                        if (isSqlVal)
-                        {
-                            serializedValue = SerializeUnencryptedSqlValue(value, mt, actualSize, param.Offset, param.NormalizationRuleVersion, stateObj);
-                        }
-                        else
-                        {
-                            // for codePageEncoded types, WriteValue simply expects the number of characters
-                            // For plp types, we also need the encoded byte size
-                            serializedValue = SerializeUnencryptedValue(value, mt, param.GetActualScale(), actualSize, param.Offset, isDataFeed, param.NormalizationRuleVersion, stateObj);
-                        }
-
-                        Debug.Assert(serializedValue != null, "serializedValue should not be null in TdsExecuteRPC.");
-                        encryptedValue = SqlSecurityUtility.EncryptWithKey(serializedValue, param.CipherMetadata, _connHandler.Connection, command);
+                        encryptedValue = (byte[])value;
                     }
-                    catch (Exception e)
+                    else
                     {
-                        throw SQL.ParamEncryptionFailed(param.ParameterName, null, e);
-                    }
+                        try
+                        {
+                            if (isSqlVal)
+                            {
+                                serializedValue = SerializeUnencryptedSqlValue(value, mt, actualSize, param.Offset, param.NormalizationRuleVersion, stateObj);
+                            }
+                            else
+                            {
+                                // for codePageEncoded types, WriteValue simply expects the number of characters
+                                // For plp types, we also need the encoded byte size
+                                serializedValue = SerializeUnencryptedValue(value, mt, param.GetActualScale(), actualSize, param.Offset, isDataFeed, param.NormalizationRuleVersion, stateObj);
+                            }
 
+                            Debug.Assert(serializedValue != null, "serializedValue should not be null in TdsExecuteRPC.");
+                            encryptedValue = SqlSecurityUtility.EncryptWithKey(serializedValue, param.CipherMetadata, _connHandler.Connection, command);
+                        }
+                        catch (Exception e)
+                        {
+                            throw SQL.ParamEncryptionFailed(param.ParameterName, null, e);
+                        }
+                    }
                     Debug.Assert(encryptedValue != null && encryptedValue.Length > 0,
-                        "encryptedValue should not be null or empty in TdsExecuteRPC.");
+                            "encryptedValue should not be null or empty in TdsExecuteRPC.");
+
                 }
                 else
                 {

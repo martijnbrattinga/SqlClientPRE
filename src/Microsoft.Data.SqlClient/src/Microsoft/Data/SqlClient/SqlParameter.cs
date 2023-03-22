@@ -242,6 +242,7 @@ namespace Microsoft.Data.SqlClient
         private string _sourceColumn;
         private DataRowVersion _sourceVersion;
         private SqlParameterFlags _flags;
+        private bool _PRE;
 
         /// <include file='../../../../../../doc/snippets/Microsoft.Data.SqlClient/SqlParameter.xml' path='docs/members[@name="SqlParameter"]/ctor2/*' />
         public SqlParameter() : base()
@@ -744,6 +745,32 @@ namespace Microsoft.Data.SqlClient
                 SetFlag(SqlParameterFlags.IsNull, (null == _value) || (_value == DBNull.Value) || (HasFlag(SqlParameterFlags.IsSqlParameterSqlType) && _valueAsINullable.IsNull));
                 _udtLoadError = null;
                 _actualSize = -1;
+            }
+        }
+
+
+        [
+        RefreshProperties(RefreshProperties.All),
+        ResCategory(StringsHelper.ResourceNames.DataCategory_Data),
+        TypeConverter(typeof(StringConverter)),
+        ]
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public bool PRE
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+        {
+            get
+            {
+                return _PRE;
+            }
+            set
+            {
+                _PRE  = value;
+                //if(_value != null)
+                //{
+                //    _coercedValue = _value;
+                //}
+
+             
             }
         }
 
@@ -1600,6 +1627,17 @@ namespace Microsoft.Data.SqlClient
 
         internal object GetCoercedValue()
         {
+            if (_PRE)
+            {
+                // TODO do we neet to SetFlag?
+                _coercedValue = Value;
+                if (Value != null && Value.GetType() == typeof(byte[]))
+                {
+                    _actualSize = (Value as byte[]).Length;
+                }
+
+                return _coercedValue;
+            }
             // NOTE: User can change the Udt at any time
             if ((_coercedValue == null) || (_internalMetaType.SqlDbType == SqlDbType.Udt))
             {  // will also be set during parameter Validation
@@ -2184,6 +2222,8 @@ namespace Microsoft.Data.SqlClient
                 (
                     (destinationType.SqlType != currentType) ||
                     (destinationType.SqlDbType == SqlDbType.Xml)
+                ) &&(
+                    true
                 )
             )
             {   // Special case for Xml types (since we need to convert SqlXml into a string)
