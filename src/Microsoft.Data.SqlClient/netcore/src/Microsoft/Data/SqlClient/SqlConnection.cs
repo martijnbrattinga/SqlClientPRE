@@ -302,15 +302,27 @@ namespace Microsoft.Data.SqlClient
         }
 
         /// <summary>
-        /// Is this connection using column encryption PRE?
+        /// Is this connection using column encryption PRE in forward direction??
         /// </summary>
-        internal bool IsColumnEncryptionPRESettingEnabled
+        internal bool IsColumnEncryptionPRESettingForward
         {
             get
             {
                 SqlConnectionString opt = (SqlConnectionString)ConnectionOptions;
                 return opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Forward ||
-                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional;
+            }
+        }
+
+        /// <summary>
+        /// Is this connection using column encryption PRE in backward direction??
+        /// </summary>
+        internal bool IsColumnEncryptionPRESettingBackward
+        {
+            get
+            {
+                SqlConnectionString opt = (SqlConnectionString)ConnectionOptions;
+                return opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward ||
                     opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional;
             }
         }

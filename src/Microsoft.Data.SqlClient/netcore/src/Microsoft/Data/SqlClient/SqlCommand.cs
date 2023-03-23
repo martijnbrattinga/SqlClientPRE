@@ -2023,6 +2023,14 @@ namespace Microsoft.Data.SqlClient
             // between entry into Execute* API and the thread obtaining the stateObject.
             _pendingCancel = false;
 
+            if (Connection.IsColumnEncryptionPRESettingForward)
+            {
+                foreach(SqlParameter p in Parameters)
+                {
+                    p.PRE = true;
+                }
+            }
+
             SqlStatistics statistics = null;
             bool success = false;
             int? sqlExceptionNumber = null;
