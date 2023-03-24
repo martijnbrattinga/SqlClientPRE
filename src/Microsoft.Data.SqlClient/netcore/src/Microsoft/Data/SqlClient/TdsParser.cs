@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6066,25 +6067,43 @@ namespace Microsoft.Data.SqlClient
                              || columnEncryptionOverride == SqlCommandColumnEncryptionSetting.ResultSetOnly
                              || (columnEncryptionOverride == SqlCommandColumnEncryptionSetting.UseConnectionSetting
                                 && _connHandler != null && _connHandler.ConnectionOptions != null
-                                && _connHandler.ConnectionOptions.ColumnEncryptionSetting == SqlConnectionColumnEncryptionSetting.Enabled &&
-                                (_connHandler.ConnectionOptions.ColumnEncryptionPRESetting != SqlConnectionColumnEncryptionPRESetting.Backward 
-                                && _connHandler.ConnectionOptions.ColumnEncryptionPRESetting != SqlConnectionColumnEncryptionPRESetting.Bidirectional
-                                ))))
+                                && _connHandler.ConnectionOptions.ColumnEncryptionSetting == SqlConnectionColumnEncryptionSetting.Enabled)))
                     {
-                        try
+                        if (_connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward
+                                || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional)
                         {
-                            // CipherInfo is present, decrypt and read
                             byte[] unencryptedBytes = SqlSecurityUtility.DecryptWithKey(b, md.cipherMD, _connHandler.Connection, command);
-
-                            if (unencryptedBytes != null)
+                            // PRE, so re-encrypt
+                            byte[] reencryptedBytes;
+#if NETCOREAPP || NETSTANDARD2_1
+                            RSA rsa = RSA.Create();
+                            rsa.ImportRSAPublicKey(command.PREPublicKey, out _);
+                            reencryptedBytes = rsa.Encrypt(unencryptedBytes, RSAEncryptionPadding.OaepSHA256);
+#else
+                            // Older dotnet solution?
+                            reencryptedBytes = b;
+#endif
+                            value.SqlBinary = SqlTypeWorkarounds.SqlBinaryCtor(reencryptedBytes, true);   // doesn't copy the byte array
+                        }
+                        else
+                        {
+                            // No PRE, just re-encrypt
+                            try
                             {
-                                DeserializeUnencryptedValue(value, unencryptedBytes, md, stateObj, md.NormalizationRuleVersion);
+                                // CipherInfo is present, decrypt and read
+                                byte[] unencryptedBytes = SqlSecurityUtility.DecryptWithKey(b, md.cipherMD, _connHandler.Connection, command);
+
+                                if (unencryptedBytes != null)
+                                {
+                                    DeserializeUnencryptedValue(value, unencryptedBytes, md, stateObj, md.NormalizationRuleVersion);
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                throw SQL.ColumnDecryptionFailed(columnName, null, e);
                             }
                         }
-                        catch (Exception e)
-                        {
-                            throw SQL.ColumnDecryptionFailed(columnName, null, e);
-                        }
+                            
                     }
                     else
                     {
@@ -9394,9 +9413,16 @@ namespace Microsoft.Data.SqlClient
 
                 if (!isNull)
                 {
-                    if (param.PRE)
+                    if (command.Connection.IsColumnEncryptionPRESettingForward)
                     {
-                        encryptedValue = (byte[])value;
+                        try
+                        {
+                            encryptedValue = SqlSecurityUtility.PREncryptWithKey((byte[])value, param.CipherMetadata, _connHandler.Connection, command);
+                        }
+                        catch (Exception e)
+                        {
+                            throw SQL.ParamEncryptionFailed(param.ParameterName, null, e);
+                        }
                     }
                     else
                     {

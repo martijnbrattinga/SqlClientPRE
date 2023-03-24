@@ -81,7 +81,7 @@ namespace Microsoft.Data.SqlClient
 
             public TaskCompletionSource<int> TaskCompletionSource => _source;
 
-            public void Set(SqlCommand command, TaskCompletionSource<int> source, CancellationTokenRegistration disposable,  Guid operationID)
+            public void Set(SqlCommand command, TaskCompletionSource<int> source, CancellationTokenRegistration disposable, Guid operationID)
             {
                 base.Set(command, source, disposable);
                 OperationID = operationID;
@@ -94,7 +94,7 @@ namespace Microsoft.Data.SqlClient
 
             protected override void AfterCleared(SqlCommand owner)
             {
-            
+
             }
         }
 
@@ -182,6 +182,24 @@ namespace Microsoft.Data.SqlClient
         // cut down on object creation and cache all these
         // cached metadata
         private _SqlMetaDataSet _cachedMetaData;
+        
+
+        private byte[] _PREPublicKey = null;
+
+        /// <summary>
+        /// Return public key used for PRE
+        /// </summary>
+        public byte[] PREPublicKey
+        {
+            get
+            {
+                return _PREPublicKey;
+            }
+            set
+            {
+                _PREPublicKey = value;
+            }
+        }
 
         internal ConcurrentDictionary<int, SqlTceCipherInfoEntry> keysToBeSentToEnclave;
         internal bool requiresEnclaveComputations = false;
@@ -230,9 +248,9 @@ namespace Microsoft.Data.SqlClient
             }
         }
 
-        internal bool ShouldUseEnclaveBasedWorkflow => 
-            (!string.IsNullOrWhiteSpace(_activeConnection.EnclaveAttestationUrl) || Connection.AttestationProtocol == SqlConnectionAttestationProtocol.None) && 
-                    IsColumnEncryptionEnabled; 
+        internal bool ShouldUseEnclaveBasedWorkflow =>
+            (!string.IsNullOrWhiteSpace(_activeConnection.EnclaveAttestationUrl) || Connection.AttestationProtocol == SqlConnectionAttestationProtocol.None) &&
+                    IsColumnEncryptionEnabled;
 
         /// <summary>
         /// Per-command custom providers. It can be provided by the user and can be set more than once. 
@@ -2025,7 +2043,7 @@ namespace Microsoft.Data.SqlClient
 
             if (Connection.IsColumnEncryptionPRESettingForward)
             {
-                foreach(SqlParameter p in Parameters)
+                foreach (SqlParameter p in Parameters)
                 {
                     p.PRE = true;
                 }
@@ -2665,10 +2683,17 @@ namespace Microsoft.Data.SqlClient
         }
 
         /// <include file='../../../../../../../doc/snippets/Microsoft.Data.SqlClient/SqlCommand.xml' path='docs/members[@name="SqlCommand"]/ExecuteReaderAsync[@name="commandBehaviorAndCancellationToken"]/*'/>
-        new public Task<SqlDataReader> ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
-            => IsProviderRetriable ?
-                InternalExecuteReaderWithRetryAsync(behavior, cancellationToken) :
-                InternalExecuteReaderAsync(behavior, cancellationToken);
+        new public Task<SqlDataReader> ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken) {
+            if (Connection.IsColumnEncryptionPRESettingForward)
+            {
+                foreach (SqlParameter p in Parameters)
+                {
+                    p.PRE = true;
+                }
+            }
+
+            return IsProviderRetriable? InternalExecuteReaderWithRetryAsync(behavior, cancellationToken) : InternalExecuteReaderAsync(behavior, cancellationToken);
+        }
 
         private Task<SqlDataReader> InternalExecuteReaderWithRetryAsync(CommandBehavior behavior, CancellationToken cancellationToken)
             => RetryLogicProvider.ExecuteAsync(this, () => InternalExecuteReaderAsync(behavior, cancellationToken), cancellationToken);
@@ -6180,7 +6205,7 @@ namespace Microsoft.Data.SqlClient
                     paramList.Append('(');
 
                     // if using non unicode types, obtain the actual byte length from the parser, with it's associated code page
-                    if (mt.IsAnsiType && !sqlParam.PRE)
+                    if (mt.IsAnsiType && !Connection.IsColumnEncryptionPRESettingForward)
                     {
                         object val = sqlParam.GetCoercedValue();
                         string s = null;

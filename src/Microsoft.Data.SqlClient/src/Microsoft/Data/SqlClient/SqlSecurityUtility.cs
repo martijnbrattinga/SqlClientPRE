@@ -188,6 +188,27 @@ namespace Microsoft.Data.SqlClient
         }
 
         /// <summary>
+        /// Re-encrypts the given data.
+        /// </summary>
+        internal static byte[] PREncryptWithKey(byte[] data, SqlCipherMetadata md, SqlConnection connection, SqlCommand command)
+        {
+            // Initialize cipherAlgo if not already done.
+            if (!md.IsAlgorithmInitialized())
+            {
+                DecryptSymmetricKey(md, connection, command);
+            }
+
+            Debug.Assert(md.IsAlgorithmInitialized(), "Encryption Algorithm is not initialized");
+            byte[] cipherText = md.CipherAlgorithm.EncryptData(data); // this call succeeds or throws.
+            if (null == cipherText || 0 == cipherText.Length)
+            {
+                throw SQL.NullCipherText();
+            }
+
+            return cipherText;
+        }
+
+        /// <summary>
         /// Gets a string with first/last 10 bytes in the buff (useful for exception handling).
         /// </summary>
         internal static string GetBytesAsString(byte[] buff, bool fLast, int countOfBytes)
