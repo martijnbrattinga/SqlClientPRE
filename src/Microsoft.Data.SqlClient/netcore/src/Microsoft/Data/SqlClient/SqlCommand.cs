@@ -185,6 +185,11 @@ namespace Microsoft.Data.SqlClient
         
 
         private byte[] _PREPublicKey = null;
+        private byte[] _PREEncryptedSymmetricKey = null;
+        private byte[] _PREEncryptedSymmetricIV = null;
+        // TODO remove if enclave is used.
+        private byte[] _PRESymmetricKeyCache = null;
+        private byte[] _PRESymmetricIVCache = null;
 
         /// <summary>
         /// Return public key used for PRE
@@ -200,6 +205,72 @@ namespace Microsoft.Data.SqlClient
                 _PREPublicKey = value;
             }
         }
+
+        /// <summary>
+        /// Return encrypted symmetric key used for PRE
+        /// </summary>
+        public byte[] PREEncryptedSymmetricKey
+        {
+            get
+            {
+                return _PREEncryptedSymmetricKey;
+            }
+            set
+            {
+                _PREEncryptedSymmetricKey = value;
+            }
+        }
+
+        /// <summary>
+        /// Return encrypted symmetric initialization vector used for PRE
+        /// </summary>
+        public byte[] PREEncryptedSymmetricIV
+        {
+            get
+            {
+                return _PREEncryptedSymmetricIV;
+            }
+            set
+            {
+                _PREEncryptedSymmetricIV = value;
+            }
+        }
+
+        /// <summary>
+        /// Return symmetric key used for PRE
+        /// </summary>
+        // TODO remove if enclave is used
+        public byte[] PRESymmetricKeyCache
+        {
+            get
+            {
+                return _PRESymmetricKeyCache;
+            }
+            set
+            {
+                _PRESymmetricKeyCache = value;
+            }
+        }
+
+        /// <summary>
+        /// Return symmetric initialization vector used for PRE
+        /// </summary>
+        // TODO remove if enclave is used
+        public byte[] PRESymmetricIVCache
+        {
+            get
+            {
+                return _PRESymmetricIVCache;
+            }
+            set
+            {
+                _PRESymmetricIVCache = value;
+            }
+        }
+
+
+
+
 
         internal ConcurrentDictionary<int, SqlTceCipherInfoEntry> keysToBeSentToEnclave;
         internal bool requiresEnclaveComputations = false;

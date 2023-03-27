@@ -6071,14 +6071,55 @@ namespace Microsoft.Data.SqlClient
                     {
                         if (_connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward
                                 || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional)
-                        {
+                        { // PRE, thus re-encrypt
+
                             byte[] unencryptedBytes = SqlSecurityUtility.DecryptWithKey(b, md.cipherMD, _connHandler.Connection, command);
-                            // PRE, so re-encrypt
                             byte[] reencryptedBytes;
+
+
 #if NETCOREAPP || NETSTANDARD2_1
+                            Aes aes = Aes.Create();
+                            aes.Mode = CipherMode.CBC;
+
+                            // RSA encrypt keys for key encapsulation
                             RSA rsa = RSA.Create();
                             rsa.ImportRSAPublicKey(command.PREPublicKey, out _);
-                            reencryptedBytes = rsa.Encrypt(unencryptedBytes, RSAEncryptionPadding.OaepSHA256);
+                            
+
+                            // AES encrypt data
+                            if (command.PRESymmetricKeyCache != null && command.PRESymmetricIVCache != null)
+                            { // re-use AES for this command
+                              // 
+                                aes.Key = command.PRESymmetricKeyCache;
+                                aes.IV = command.PRESymmetricIVCache;
+
+                            }
+                            else
+                            {
+                                command.PRESymmetricKeyCache = aes.Key;
+                                command.PRESymmetricIVCache = aes.IV;
+                                command.PREEncryptedSymmetricKey = rsa.Encrypt(aes.Key, RSAEncryptionPadding.OaepSHA256);
+                                command.PREEncryptedSymmetricIV = rsa.Encrypt(aes.IV, RSAEncryptionPadding.OaepSHA256);
+                            }
+                            
+
+                            using (ICryptoTransform encryptor = aes.CreateEncryptor())
+                            {
+                                using (MemoryStream memoryStream = new MemoryStream())
+                                {
+                                    using (CryptoStream cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
+                                    {
+                                        cryptoStream.Write(unencryptedBytes, 0, unencryptedBytes.Length);
+                                        cryptoStream.FlushFinalBlock();
+
+                                        reencryptedBytes = memoryStream.ToArray();
+                                    }
+
+                                }
+                            }
+
+                            
+                            
 #else
                             // Older dotnet solution?
                             reencryptedBytes = b;
