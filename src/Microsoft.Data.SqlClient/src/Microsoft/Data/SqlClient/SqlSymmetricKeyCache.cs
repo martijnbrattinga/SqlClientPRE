@@ -77,7 +77,7 @@ namespace Microsoft.Data.SqlClient
                     // to prevent conflicts between CEK caches, global providers should not use their own CEK caches
                     provider.ColumnEncryptionKeyCacheTtl = new TimeSpan(0);
                     plaintextKey = provider.DecryptColumnEncryptionKey(keyInfo.keyPath, keyInfo.algorithmName, keyInfo.encryptedKey);
-                    Console.WriteLine("MartijnPrint: plaintext CEK from SqlSymmetricKeyCache " + Convert.ToBase64String(plaintextKey));
+                    //Console.WriteLine("MartijnPrint: plaintext CEK from SqlSymmetricKeyCache " + Convert.ToBase64String(plaintextKey));
                 }
                 catch (Exception e)
                 {

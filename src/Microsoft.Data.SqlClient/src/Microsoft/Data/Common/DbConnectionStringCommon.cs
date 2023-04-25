@@ -511,6 +511,21 @@ namespace Microsoft.Data.Common
                 result = SqlConnectionColumnEncryptionPRESetting.Bidirectional;
                 isSuccess = true;
             }
+            else if (StringComparer.InvariantCultureIgnoreCase.Equals(value, nameof(SqlConnectionColumnEncryptionPRESetting.ForwardTEE)))
+            {
+                result = SqlConnectionColumnEncryptionPRESetting.ForwardTEE;
+                isSuccess = true;
+            }
+            else if (StringComparer.InvariantCultureIgnoreCase.Equals(value, nameof(SqlConnectionColumnEncryptionPRESetting.BackwardTEE)))
+            {
+                result = SqlConnectionColumnEncryptionPRESetting.BackwardTEE;
+                isSuccess = true;
+            }
+            else if (StringComparer.InvariantCultureIgnoreCase.Equals(value, nameof(SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE)))
+            {
+                result = SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE;
+                isSuccess = true;
+            }
             else if (StringComparer.InvariantCultureIgnoreCase.Equals(value, nameof(SqlConnectionColumnEncryptionPRESetting.Disabled)))
             {
                 result = SqlConnectionColumnEncryptionPRESetting.Disabled;
@@ -542,8 +557,8 @@ namespace Microsoft.Data.Common
         /// <returns></returns>
         internal static bool IsValidColumnEncryptionPRESetting(SqlConnectionColumnEncryptionPRESetting value)
         {
-            Debug.Assert(Enum.GetNames(typeof(SqlConnectionColumnEncryptionPRESetting)).Length == 2, "SqlConnectionColumnEncryptionPRESetting enum has changed, update needed");
-            return value == SqlConnectionColumnEncryptionPRESetting.Forward || value == SqlConnectionColumnEncryptionPRESetting.Backward || value == SqlConnectionColumnEncryptionPRESetting.Bidirectional ||  value == SqlConnectionColumnEncryptionPRESetting.Disabled;
+            Debug.Assert(Enum.GetNames(typeof(SqlConnectionColumnEncryptionPRESetting)).Length == 7, "SqlConnectionColumnEncryptionPRESetting enum has changed, update needed");
+            return value == SqlConnectionColumnEncryptionPRESetting.Forward || value == SqlConnectionColumnEncryptionPRESetting.Backward || value == SqlConnectionColumnEncryptionPRESetting.Bidirectional || value == SqlConnectionColumnEncryptionPRESetting.ForwardTEE || value == SqlConnectionColumnEncryptionPRESetting.BackwardTEE || value == SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE ||  value == SqlConnectionColumnEncryptionPRESetting.Disabled;
         }
 
         /// <summary>
@@ -577,6 +592,9 @@ namespace Microsoft.Data.Common
                 SqlConnectionColumnEncryptionPRESetting.Forward => nameof(SqlConnectionColumnEncryptionPRESetting.Forward),
                 SqlConnectionColumnEncryptionPRESetting.Backward => nameof(SqlConnectionColumnEncryptionPRESetting.Backward),
                 SqlConnectionColumnEncryptionPRESetting.Bidirectional => nameof(SqlConnectionColumnEncryptionPRESetting.Bidirectional),
+                SqlConnectionColumnEncryptionPRESetting.ForwardTEE => nameof(SqlConnectionColumnEncryptionPRESetting.ForwardTEE),
+                SqlConnectionColumnEncryptionPRESetting.BackwardTEE => nameof(SqlConnectionColumnEncryptionPRESetting.BackwardTEE),
+                SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE => nameof(SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE),
                 SqlConnectionColumnEncryptionPRESetting.Disabled => nameof(SqlConnectionColumnEncryptionPRESetting.Disabled),
                 _ => null,
             };

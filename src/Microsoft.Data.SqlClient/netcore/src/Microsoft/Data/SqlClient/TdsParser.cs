@@ -6069,61 +6069,78 @@ namespace Microsoft.Data.SqlClient
                                 && _connHandler != null && _connHandler.ConnectionOptions != null
                                 && _connHandler.ConnectionOptions.ColumnEncryptionSetting == SqlConnectionColumnEncryptionSetting.Enabled)))
                     {
-                        if (_connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward
-                                || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional)
+                        /*
+                         * _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward
+                                || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional
+                                || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BackwardTEE
+                                || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE
+                         */
+                        if (command.Connection.IsColumnEncryptionPRESettingBackward)
                         { // PRE, thus re-encrypt
-
-                            byte[] unencryptedBytes = SqlSecurityUtility.DecryptWithKey(b, md.cipherMD, _connHandler.Connection, command);
                             byte[] reencryptedBytes;
 
-
-#if NETCOREAPP || NETSTANDARD2_1
-                            Aes aes = Aes.Create();
-                            aes.Mode = CipherMode.CBC;
-
-                            // RSA encrypt keys for key encapsulation
-                            RSA rsa = RSA.Create();
-                            rsa.ImportRSAPublicKey(command.PREPublicKey, out _);
-                            
-
-                            // AES encrypt data
-                            if (command.PRESymmetricKeyCache != null && command.PRESymmetricIVCache != null)
-                            { // re-use AES for this command
-                              // 
-                                aes.Key = command.PRESymmetricKeyCache;
-                                aes.IV = command.PRESymmetricIVCache;
-
+                            if (command.Connection.IsColumnEncryptionPRESettingTEE && false)
+                            {
+                                // TODO implement TEE 
                             }
                             else
                             {
-                                command.PRESymmetricKeyCache = aes.Key;
-                                command.PRESymmetricIVCache = aes.IV;
-                                command.PREEncryptedSymmetricKey = rsa.Encrypt(aes.Key, RSAEncryptionPadding.OaepSHA256);
-                                command.PREEncryptedSymmetricIV = rsa.Encrypt(aes.IV, RSAEncryptionPadding.OaepSHA256);
-                            }
-                            
 
-                            using (ICryptoTransform encryptor = aes.CreateEncryptor())
-                            {
-                                using (MemoryStream memoryStream = new MemoryStream())
-                                {
-                                    using (CryptoStream cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
-                                    {
-                                        cryptoStream.Write(unencryptedBytes, 0, unencryptedBytes.Length);
-                                        cryptoStream.FlushFinalBlock();
 
-                                        reencryptedBytes = memoryStream.ToArray();
-                                    }
+
+                                byte[] unencryptedBytes = SqlSecurityUtility.DecryptWithKey(b, md.cipherMD, _connHandler.Connection, command);
+                                
+
+
+#if NETCOREAPP || NETSTANDARD2_1
+                                Aes aes = Aes.Create();
+                                aes.Mode = CipherMode.CBC;
+
+                                // RSA encrypt keys for key encapsulation
+                                RSA rsa = RSA.Create();
+                                //rsa.ImportRSAPublicKey(command.PREPublicKey, out _);
+                                rsa.ImportSubjectPublicKeyInfo(command.PREPublicKey, out _);
+
+
+                                // AES encrypt data
+                                if (command.PRESymmetricKeyCache != null && command.PRESymmetricIVCache != null)
+                                { // re-use AES for this command
+                                  // 
+                                    aes.Key = command.PRESymmetricKeyCache;
+                                    aes.IV = command.PRESymmetricIVCache;
 
                                 }
-                            }
+                                else
+                                {
+                                    command.PRESymmetricKeyCache = aes.Key;
+                                    command.PRESymmetricIVCache = aes.IV;
+                                    command.PREEncryptedSymmetricKey = rsa.Encrypt(aes.Key, RSAEncryptionPadding.OaepSHA256);
+                                    command.PREEncryptedSymmetricIV = rsa.Encrypt(aes.IV, RSAEncryptionPadding.OaepSHA256);
+                                }
 
-                            
-                            
+
+                                using (ICryptoTransform encryptor = aes.CreateEncryptor())
+                                {
+                                    using (MemoryStream memoryStream = new MemoryStream())
+                                    {
+                                        using (CryptoStream cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
+                                        {
+                                            cryptoStream.Write(unencryptedBytes, 0, unencryptedBytes.Length);
+                                            cryptoStream.FlushFinalBlock();
+
+                                            reencryptedBytes = memoryStream.ToArray();
+                                        }
+
+                                    }
+                                }
+
+
+
 #else
-                            // Older dotnet solution?
-                            reencryptedBytes = b;
+                                // Older dotnet solution?
+                                reencryptedBytes = b;
 #endif
+                            }
                             value.SqlBinary = SqlTypeWorkarounds.SqlBinaryCtor(reencryptedBytes, true);   // doesn't copy the byte array
                         }
                         else
@@ -9456,13 +9473,20 @@ namespace Microsoft.Data.SqlClient
                 {
                     if (command.Connection.IsColumnEncryptionPRESettingForward)
                     {
-                        try
+
+                        if (command.Connection.IsColumnEncryptionPRESettingTEE && false)
                         {
-                            // Decrypt parameter with hardcoded private *key
+                            // TODO implement TEE
+                        }else
+                        {
+
+                            try
+                            {
+                                // Decrypt parameter with hardcoded private *key
 
 #if NETCOREAPP
 
-                            string privatekey = @"
+                                string privatekey = @"
         -----BEGIN PRIVATE KEY-----
 MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDKTBNkZWrC2cjw
 / sk7L0oW4G7nUIWJEz / 08DsZB + rk6EeQ2uGyNl6aOlIwrk7ZrCwlE2X1g3piS21v
@@ -9493,33 +9517,33 @@ dGhvHz35g4CXp40B9KUTJw ==
 -----END PRIVATE KEY-----
 ";
 
-                            RSA rsa = RSA.Create();
-                            
-                            rsa.ImportFromPem(privatekey);
+                                RSA rsa = RSA.Create();
+
+                                rsa.ImportFromPem(privatekey);
 
 
-                            Aes aes = Aes.Create();
-                            aes.Key = rsa.Decrypt(command.PREEncryptedSymmetricKey, RSAEncryptionPadding.OaepSHA256);
-                            aes.IV = rsa.Decrypt(command.PREEncryptedSymmetricIV, RSAEncryptionPadding.OaepSHA256);
+                                Aes aes = Aes.Create();
+                                aes.Key = rsa.Decrypt(command.PREEncryptedSymmetricKey, RSAEncryptionPadding.OaepSHA256);
+                                aes.IV = rsa.Decrypt(command.PREEncryptedSymmetricIV, RSAEncryptionPadding.OaepSHA256);
 
-                            byte[] valueBytes = (byte[])value;
-                            byte[] plainValue;
+                                byte[] valueBytes = (byte[])value;
+                                byte[] plainValue;
 
-                            using (ICryptoTransform encryptor = aes.CreateDecryptor())
-                            {
-                                using (MemoryStream memoryStream = new MemoryStream())
+                                using (ICryptoTransform encryptor = aes.CreateDecryptor())
                                 {
-                                    using (CryptoStream cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
+                                    using (MemoryStream memoryStream = new MemoryStream())
                                     {
-                                        cryptoStream.Write(valueBytes, 0, valueBytes.Length);
-                                        cryptoStream.FlushFinalBlock();
+                                        using (CryptoStream cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
+                                        {
+                                            cryptoStream.Write(valueBytes, 0, valueBytes.Length);
+                                            cryptoStream.FlushFinalBlock();
 
-                                        plainValue = memoryStream.ToArray();
+                                            plainValue = memoryStream.ToArray();
+                                        }
+
                                     }
-
                                 }
-                            }
-                            Console.WriteLine("Re-encrypted parameter :)");
+                                Console.WriteLine("Re-encrypted parameter :)");
 
 #else
 
@@ -9527,12 +9551,13 @@ dGhvHz35g4CXp40B9KUTJw ==
                             // TODO alternative for old dotnet version
 
 #endif
-                            // Re-Encrypt parameter
-                            encryptedValue = SqlSecurityUtility.PREncryptWithKey(plainValue, param.CipherMetadata, _connHandler.Connection, command);
-                        }
-                        catch (Exception e)
-                        {
-                            throw SQL.ParamEncryptionFailed(param.ParameterName, null, e);
+                                // Re-Encrypt parameter
+                                encryptedValue = SqlSecurityUtility.PREncryptWithKey(plainValue, param.CipherMetadata, _connHandler.Connection, command);
+                            }
+                            catch (Exception e)
+                            {
+                                throw SQL.ParamEncryptionFailed(param.ParameterName, null, e);
+                            }
                         }
                     }
                     else

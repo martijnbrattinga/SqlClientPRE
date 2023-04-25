@@ -1196,6 +1196,14 @@ namespace Microsoft.Data.SqlClient
             // between entry into Execute* API and the thread obtaining the stateObject.
             _pendingCancel = false;
 
+            if (Connection.IsColumnEncryptionPRESettingForward)
+            {
+                foreach (SqlParameter p in Parameters)
+                {
+                    p.PRE = true;
+                }
+            }
+
             using (DiagnosticScope diagnosticScope = s_diagnosticListener.CreateCommandScope(this, _transaction))
             using (TryEventScope.Create("SqlCommand.ExecuteScalar | API | ObjectId {0}", ObjectID))
             {
@@ -1275,6 +1283,14 @@ namespace Microsoft.Data.SqlClient
             // Reset _pendingCancel upon entry into any Execute - used to synchronize state
             // between entry into Execute* API and the thread obtaining the stateObject.
             _pendingCancel = false;
+
+            if (Connection.IsColumnEncryptionPRESettingForward)
+            {
+                foreach (SqlParameter p in Parameters)
+                {
+                    p.PRE = true;
+                }
+            }
 
             using (var diagnosticScope = s_diagnosticListener.CreateCommandScope(this, _transaction))
             using (TryEventScope.Create("SqlCommand.ExecuteNonQuery | API | Object Id {0}", ObjectID))
@@ -1783,6 +1799,7 @@ namespace Microsoft.Data.SqlClient
             // Reset _pendingCancel upon entry into any Execute - used to synchronize state
             // between entry into Execute* API and the thread obtaining the stateObject.
             _pendingCancel = false;
+
 
             using (DiagnosticScope diagnosticScope = s_diagnosticListener.CreateCommandScope(this, _transaction))
             using (TryEventScope.Create("SqlCommand.ExecuteXmlReader | API | Object Id {0}", ObjectID))
@@ -4096,6 +4113,7 @@ namespace Microsoft.Data.SqlClient
 
                 rpc.rpcName = CommandText;
                 rpc.userParams = _parameters;
+
 
                 // Prepare the RPC request for describe parameter encryption procedure.
                 PrepareDescribeParameterEncryptionRequest(rpc, ref _sqlRPCParameterEncryptionReqArray[0], serializedAttestationParameters);

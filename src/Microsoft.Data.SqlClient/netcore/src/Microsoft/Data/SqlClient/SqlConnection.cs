@@ -157,7 +157,7 @@ namespace Microsoft.Data.SqlClient
         public SqlConnection(string connectionString) : this()
         {
             ConnectionString = connectionString;    // setting connection string first so that ConnectionOption is available
-            Console.WriteLine("added print statement in SqlConnection line 160");
+            Console.WriteLine("added print statement in SqlConnection line 160 :)");
         }
 
         /// <include file='../../../../../../../doc/snippets/Microsoft.Data.SqlClient/SqlConnection.xml' path='docs/members[@name="SqlConnection"]/ctorConnectionStringCredential/*' />
@@ -310,7 +310,9 @@ namespace Microsoft.Data.SqlClient
             {
                 SqlConnectionString opt = (SqlConnectionString)ConnectionOptions;
                 return opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Forward ||
-                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional;
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.ForwardTEE ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE;
             }
         }
 
@@ -323,7 +325,23 @@ namespace Microsoft.Data.SqlClient
             {
                 SqlConnectionString opt = (SqlConnectionString)ConnectionOptions;
                 return opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward ||
-                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional;
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BackwardTEE ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE;
+            }
+        }
+
+        /// <summary>
+        /// Is this connection using column encryption PRE with TEE (as opposed to untrusted)?
+        /// </summary>
+        internal bool IsColumnEncryptionPRESettingTEE
+        {
+            get
+            {
+                SqlConnectionString opt = (SqlConnectionString)ConnectionOptions;
+                return opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.ForwardTEE ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BackwardTEE ||
+                    opt?.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE;
             }
         }
 

@@ -1162,7 +1162,19 @@ namespace Microsoft.Data.SqlClient
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        Bidirectional
+        Bidirectional,
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        ForwardTEE,
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        BackwardTEE,
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        BidirectionalTEE
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
     }
 

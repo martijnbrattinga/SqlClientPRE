@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Data.SqlClient
 {
@@ -240,6 +241,8 @@ namespace Microsoft.Data.SqlClient
                         byte[] hash = hmac.Hash;
                         Debug.Assert(hash.Length >= authenticationTagLen, "Unexpected hash size");
                         Buffer.BlockCopy(hash, 0, outBuffer, hmacStartIndex, authenticationTagLen);
+
+                        Console.WriteLine("Encrypted value " + Convert.ToBase64String(plainText) + " into " + Convert.ToBase64String(outBuffer) + " thus IV is " + Convert.ToBase64String(iv) + " and key is " + Convert.ToBase64String(aesAlg.Key) + " while MAC key is "  + Convert.ToBase64String(hmac.Key));
                     }
                 }
             }
@@ -394,7 +397,7 @@ namespace Microsoft.Data.SqlClient
                 _cryptoProviderPool.Enqueue(aesAlg);
             }
 
-            Console.WriteLine("MartijnPrint DecryptData with IV " + Convert.ToBase64String(iv) + " and ciphertext " + Convert.ToBase64String(cipherText) + " to plaintext " + Convert.ToBase64String(plainText));
+            //Console.WriteLine("MartijnPrint DecryptData with IV " + Convert.ToBase64String(iv) + " and ciphertext " + Convert.ToBase64String(cipherText) + " to plaintext " + Convert.ToBase64String(plainText));
 
             return plainText;
         }
