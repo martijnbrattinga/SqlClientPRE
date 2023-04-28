@@ -318,7 +318,8 @@ namespace Microsoft.Data.SqlClient
             Debug.Assert(encryptionkeyInfoChosen is not null, "encryptionkeyInfoChosen must have a value.");
         }
 
-        private static SqlClientSymmetricKey GetKeyFromLocalProviders(SqlEncryptionKeyInfo keyInfo, SqlConnection connection, SqlCommand command)
+        //TODO made internal instead of private for hack key retrieval
+        internal static SqlClientSymmetricKey GetKeyFromLocalProviders(SqlEncryptionKeyInfo keyInfo, SqlConnection connection, SqlCommand command)
         {
             string serverName = connection.DataSource;
             Debug.Assert(serverName is not null, @"serverName should not be null.");
