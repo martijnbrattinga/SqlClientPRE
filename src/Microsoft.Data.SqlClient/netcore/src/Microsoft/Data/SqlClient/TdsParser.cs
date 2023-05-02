@@ -6070,34 +6070,23 @@ namespace Microsoft.Data.SqlClient
                                 && _connHandler != null && _connHandler.ConnectionOptions != null
                                 && _connHandler.ConnectionOptions.ColumnEncryptionSetting == SqlConnectionColumnEncryptionSetting.Enabled)))
                     {
-                        /*
-                         * _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Backward
-                                || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.Bidirectional
-                                || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BackwardTEE
-                                || _connHandler.ConnectionOptions.ColumnEncryptionPRESetting == SqlConnectionColumnEncryptionPRESetting.BidirectionalTEE
-                         */
                         if (command.Connection.IsColumnEncryptionPRESettingBackward)
                         { // PRE, thus re-encrypt
                             byte[] reencryptedBytes = null;
 
                             if (command.Connection.IsColumnEncryptionPRESettingTEE)
-                            {
+                            { // Use TEE
+                                Console.WriteLine("PRE backward with TEE");
+
                                 byte[] valueBytes = (byte[])b;
-                                byte[] result_prebackward = new byte[b.Length - 1 -32 -16]; // Buffer the size of the ciphertext minus version byte, MAC, IV
+                                byte[] result_prebackward = new byte[b.Length - 1 - 32 - 16]; // Buffer the size of the ciphertext minus version byte, MAC, IV
 #if NETCOREAPP
                                 /*
-                                int x = command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
-                                if (x == 1)
-                                {
-                                    //
-
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Error setting prenclave session");
-                                }
+                                 * Re-using enclave session thus no need to create again
+                                command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
                                 */
 
+                                // Re-encrypt value
                                 int x = command.Connection._PREnclave.enclave_PREBackward(valueBytes, result_prebackward);
                                 if (x == 1)
                                 {
@@ -6106,46 +6095,39 @@ namespace Microsoft.Data.SqlClient
                                 else
                                 {
                                     Console.WriteLine("Error in prenclave backward :(");
+                                    throw new Exception("Error in prenclave backward.");
                                 }
-#endif
-
-
                             }
-                            else{
-
-
+                            else
+                            { // PRE without enclave, thus in normal C# execution
+                                Console.WriteLine("PRE backward without TEE (thus normal C#)");
 
                                 byte[] unencryptedBytes = SqlSecurityUtility.DecryptWithKey(b, md.cipherMD, _connHandler.Connection, command);
-                                
 
-
-#if NETCOREAPP
                                 Aes aes = Aes.Create();
                                 aes.Mode = CipherMode.CBC;
 
                                 // RSA encrypt keys for key encapsulation
-                                RSA rsa = RSA.Create();
-                                //rsa.ImportRSAPublicKey(command.PREPublicKey, out _);
-                                // ImportSubjectPublicKeyInfo
-                                rsa.ImportFromPem(Encoding.UTF8.GetString(command.PREPublicKey).ToCharArray());
+                                RSA rsa_client_public = RSA.Create();
+                                rsa_client_public.ImportFromPem(Encoding.UTF8.GetString(command.PREPublicKey).ToCharArray());
 
 
                                 // AES encrypt data
                                 if (command.PRESymmetricKeyCache != null && command.PRESymmetricIVCache != null)
                                 { // re-use AES for this command
-                                  // 
                                     aes.Key = command.PRESymmetricKeyCache;
                                     aes.IV = command.PRESymmetricIVCache;
 
-                            }
+                                }
                                 else
                                 {
-                                 command.PRESymmetricKeyCache = aes.Key;
-                                 command.PRESymmetricIVCache = aes.IV;
-                                 command.PREEncryptedSymmetricKey = rsa.Encrypt(aes.Key, RSAEncryptionPadding.OaepSHA256);
-                                 command.PREEncryptedSymmetricIV = rsa.Encrypt(aes.IV, RSAEncryptionPadding.OaepSHA256);
-                                
-                            }
+                                    // The plain IV and Key are cached for peformance benefits; Note: keys are longer in memory because of this
+                                    command.PRESymmetricKeyCache = aes.Key;
+                                    command.PRESymmetricIVCache = aes.IV;
+                                    command.PREEncryptedSymmetricKey = rsa_client_public.Encrypt(aes.Key, RSAEncryptionPadding.OaepSHA256);
+                                    command.PREEncryptedSymmetricIV = rsa_client_public.Encrypt(aes.IV, RSAEncryptionPadding.OaepSHA256);
+
+                                }
 
 
                                 using (ICryptoTransform encryptor = aes.CreateEncryptor())
@@ -6156,12 +6138,10 @@ namespace Microsoft.Data.SqlClient
                                         {
                                             cryptoStream.Write(unencryptedBytes, 0, unencryptedBytes.Length);
                                             cryptoStream.FlushFinalBlock();
-
-                                            //reencryptedBytes = memoryStream.ToArray();
+                                            reencryptedBytes = memoryStream.ToArray();
+                                        }
 
                                     }
-
-                                }
                                 }
 
 
@@ -6169,13 +6149,14 @@ namespace Microsoft.Data.SqlClient
 #else
                                 // Older dotnet solution?
                                 reencryptedBytes = b;
+                                throw new Exception("Error in prenclave backward. This dotnet version is not supported");
 #endif
                             }
                             value.SqlBinary = SqlTypeWorkarounds.SqlBinaryCtor(reencryptedBytes, true);   // doesn't copy the byte array
                         }
                         else
                         {
-                            // No PRE, just re-encrypt
+                            // No PRE, just decrypt
                             try
                             {
                                 // CipherInfo is present, decrypt and read
@@ -6191,7 +6172,7 @@ namespace Microsoft.Data.SqlClient
                                 throw SQL.ColumnDecryptionFailed(columnName, null, e);
                             }
                         }
-                            
+
                     }
                     else
                     {
@@ -9504,8 +9485,70 @@ namespace Microsoft.Data.SqlClient
                     if (command.Connection.IsColumnEncryptionPRESettingForward)
                     {
 
-#pragma warning disable CS0219 // Variable is assigned but its value is never used
-                        string privatekey = @"
+#if NETCOREAPP
+                        if (command.Connection.IsColumnEncryptionPRESettingTEE)
+                        { // Use TEE to PRE forward
+                            Console.WriteLine("PRE forward with TEE");
+                            byte[] valueBytes = (byte[])value;
+                            byte[] result_preforward = new byte[1 + 32 + 16 + (valueBytes.Length - (valueBytes.Length % 16))];
+
+                            /*
+                            // TODO reuse IV and key is bad;
+                            {
+                                RSA rsaproxy = RSA.Create();
+                                rsaproxy.ImportFromPem(privatekey);
+
+                                if (command.PRESymmetricKeyCache == null || command.PRESymmetricIVCache == null)
+                                {
+                                    command.PRESymmetricKeyCache = rsa.Decrypt(command.PREEncryptedSymmetricKey, RSAEncryptionPadding.OaepSHA256);
+                                    command.PRESymmetricIVCache = rsa.Decrypt(command.PREEncryptedSymmetricIV, RSAEncryptionPadding.OaepSHA256);
+                                }
+
+                            } */
+
+                            // Create new session between client - proxy
+                            int x = command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
+                            if (x != 1)
+                            {
+                                Console.WriteLine("Error setting prenclave session");
+                                throw new Exception("Error in prenclave forward. Could not create enclave session.");
+                            }
+
+                            // For simplicity just obtain database private key here; (makes whole idea obsolete as key is in insecure memory)
+                            if (!param.CipherMetadata.IsAlgorithmInitialized())
+                            {
+                                SqlSecurityUtility.DecryptSymmetricKey(param.CipherMetadata, _connHandler.Connection, command);
+                            }
+                            byte[] rootkey = SqlSecurityUtility.GetKeyFromLocalProviders(param.CipherMetadata.EncryptionKeyInfo, _connHandler.Connection, command).RootKey;
+
+                            // Set database private key in enclave (again, from untrusted = insecure)
+                            x = command.Connection._PREnclave.enclave_set_key_db_insecure(rootkey);
+                            if (x != 1)
+                            {
+                                Console.WriteLine("Error setting prenclave database private key");
+                                throw new Exception("Error in prenclave forward. Could not set db key.");
+                            }
+
+                            // Proxy re-encrypt
+                            x = command.Connection._PREnclave.enclave_PREForward(valueBytes, result_preforward);
+                            if (x == 1)
+                            {
+                                encryptedValue = result_preforward;
+                            }
+                            else
+                            {
+                                Console.WriteLine("Error in prenclave forward :(");
+                                throw new Exception("Error in prenclave forward.");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("PRE forward without TEE (thus normal C#)");
+                            try
+                            {
+
+// For simplicity this prototype uses a hardcoded private key; note: VERY INSECURE
+                                string privatekey = @"
         -----BEGIN PRIVATE KEY-----
 MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDKTBNkZWrC2cjw
 / sk7L0oW4G7nUIWJEz / 08DsZB + rk6EeQ2uGyNl6aOlIwrk7ZrCwlE2X1g3piS21v
@@ -9535,86 +9578,13 @@ KtBOr0qL2I7rt0QPaSBCpvknFmSMKrwVekY2bcF00T / EmArD6N4TLjLP9bV3x / xn
 dGhvHz35g4CXp40B9KUTJw ==
 -----END PRIVATE KEY-----
 ";
-#pragma warning restore CS0219 // Variable is assigned but its value is never used
 
-                        if (command.Connection.IsColumnEncryptionPRESettingTEE)
-                        {
-                            byte[] valueBytes = (byte[])value;
-                            byte[] result_preforward = new byte[1 + 32 + 16 + (valueBytes.Length - (valueBytes.Length % 16))];
-
-                            // TODO reuse IV and key is bad; REMOVE
-                            {
-                                RSA rsa = RSA.Create();
-#if NETCOREAPP
-                                rsa.ImportFromPem(privatekey);
-#endif
-                                if (command.PRESymmetricKeyCache == null || command.PRESymmetricIVCache == null)
-                                {
-                                    command.PRESymmetricKeyCache = rsa.Decrypt(command.PREEncryptedSymmetricKey, RSAEncryptionPadding.OaepSHA256);
-                                    command.PRESymmetricIVCache = rsa.Decrypt(command.PREEncryptedSymmetricIV, RSAEncryptionPadding.OaepSHA256);
-                                }
-                                    
-                            }
-
-#if NETCOREAPP
-                            int x = command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
-                            if(x == 1){
-                                //
-
-                            }else{
-                                Console.WriteLine("Error setting prenclave session");
-                            }
-
-                            // For simplicity just obtain database private key here; (makes whole idea obsolete, but demonstrates ability)
-                            if (!param.CipherMetadata.IsAlgorithmInitialized())
-                            {
-                                SqlSecurityUtility.DecryptSymmetricKey(param.CipherMetadata, _connHandler.Connection, command);
-                            }
-
-                            
-                            byte[] rootkey = SqlSecurityUtility.GetKeyFromLocalProviders(param.CipherMetadata.EncryptionKeyInfo, _connHandler.Connection, command).RootKey;
-                            //Console.WriteLine("Rootkey: [{0}]", string.Join(", ", rootkey));
-
-                            /*
-                            Console.WriteLine("Calculating encryption key: ");
-                            string salt = @"Microsoft SQL Server cell encryption key with encryption algorithm:AEAD_AES_256_CBC_HMAC_SHA256 and key length:256";
-                            byte[] cekey = new byte[32];
-                            SqlSecurityUtility.GetHMACWithSHA256(Encoding.Unicode.GetBytes(salt), rootkey, cekey);
-                            Console.WriteLine("Encryption key: [{0}]", string.Join(", ", cekey));
-                            */
-
-                            x = command.Connection._PREnclave.enclave_set_key_db_insecure(rootkey);
-                            if(x == 1){
-                                //
-
-                            }else{
-                                Console.WriteLine("Error setting prenclave database private key");
-                            }
-
-                            x = command.Connection._PREnclave.enclave_PREForward(valueBytes, result_preforward);
-                            if ( x == 1){
-                                encryptedValue = result_preforward;
-                            }else{
-                                Console.WriteLine("Error in prenclave forward :(");
-                            }
-#endif
-
-                        }
-                        else{
-
-                            try
-                            {
                                 // Decrypt parameter with hardcoded private *key
-
-#if NETCOREAPP
-                                RSA rsa = RSA.Create();
-
-                                rsa.ImportFromPem(privatekey);
-
-
+                                RSA rsaproxy = RSA.Create();
+                                rsaproxy.ImportFromPem(privatekey);
                                 Aes aes = Aes.Create();
-                                aes.Key = rsa.Decrypt(command.PREEncryptedSymmetricKey, RSAEncryptionPadding.OaepSHA256);
-                                aes.IV = rsa.Decrypt(command.PREEncryptedSymmetricIV, RSAEncryptionPadding.OaepSHA256);
+                                aes.Key = rsaproxy.Decrypt(command.PREEncryptedSymmetricKey, RSAEncryptionPadding.OaepSHA256);
+                                aes.IV = rsaproxy.Decrypt(command.PREEncryptedSymmetricIV, RSAEncryptionPadding.OaepSHA256);
 
                                 byte[] valueBytes = (byte[])value;
                                 byte[] plainValue;
@@ -9634,23 +9604,18 @@ dGhvHz35g4CXp40B9KUTJw ==
                                     }
                                 }
 
-#else
 
-                            byte[] plainValue = new byte[]{};
-                            // TODO alternative for old dotnet version
-
-#endif
-                            // Re-Encrypt parameter
+                                // Re-Encrypt parameter
                                 encryptedValue = SqlSecurityUtility.PREncryptWithKey(plainValue, param.CipherMetadata, _connHandler.Connection, command);
-
-                            Console.WriteLine("Re-encrypted parameter :)");
-
-                        }
-                        catch (Exception e)
+                            }
+                            catch (Exception e)
                             {
                                 throw SQL.ParamEncryptionFailed(param.ParameterName, null, e);
                             }
                         }
+#else
+                            throw new Exception("Error in prenclave forward. This dotnet verison is not supported");
+#endif
                     }
                     else
                     {
@@ -12813,7 +12778,7 @@ dGhvHz35g4CXp40B9KUTJw ==
                 return true;       // No data
             }
 
-            Debug.Assert(((ulong)stateObj._longlen != TdsEnums.SQL_PLP_NULL),"Out of sync plp read request");
+            Debug.Assert(((ulong)stateObj._longlen != TdsEnums.SQL_PLP_NULL), "Out of sync plp read request");
 
             Debug.Assert((buff == null && offst == 0) || (buff.Length >= offst + len), "Invalid length sent to ReadPlpUnicodeChars()!");
             charsLeft = len;
