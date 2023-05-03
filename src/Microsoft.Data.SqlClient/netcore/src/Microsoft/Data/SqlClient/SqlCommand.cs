@@ -187,6 +187,8 @@ namespace Microsoft.Data.SqlClient
         private byte[] _PREPublicKey = null;
         private byte[] _PREEncryptedSymmetricKey = null;
         private byte[] _PREEncryptedSymmetricIV = null;
+        private byte[] _PREEncryptedSymmetricKeyClient = null;
+        private byte[] _PREEncryptedSymmetricIVClient = null;
         // TODO remove if enclave is used.
         private byte[] _PRESymmetricKeyCache = null;
         private byte[] _PRESymmetricIVCache = null;
@@ -207,7 +209,7 @@ namespace Microsoft.Data.SqlClient
         }
 
         /// <summary>
-        /// Return encrypted symmetric key used for PRE
+        /// Return encrypted symmetric key used for PRE (encrypted under proxy public key)
         /// </summary>
         public byte[] PREEncryptedSymmetricKey
         {
@@ -222,7 +224,7 @@ namespace Microsoft.Data.SqlClient
         }
 
         /// <summary>
-        /// Return encrypted symmetric initialization vector used for PRE
+        /// Return encrypted symmetric initialization vector used for PRE (encrypted under proxy public key)
         /// </summary>
         public byte[] PREEncryptedSymmetricIV
         {
@@ -233,6 +235,36 @@ namespace Microsoft.Data.SqlClient
             set
             {
                 _PREEncryptedSymmetricIV = value;
+            }
+        }
+
+        /// <summary>
+        /// Return encrypted symmetric key used for PRE (encrypted under client public key)
+        /// </summary>
+        public byte[] PREEncryptedSymmetricKeyClient
+        {
+            get
+            {
+                return _PREEncryptedSymmetricKeyClient;
+            }
+            set
+            {
+                _PREEncryptedSymmetricKeyClient = value;
+            }
+        }
+
+        /// <summary>
+        /// Return encrypted symmetric initialization vector used for PRE (encrypted under client public key)
+        /// </summary>
+        public byte[] PREEncryptedSymmetricIVClient
+        {
+            get
+            {
+                return _PREEncryptedSymmetricIVClient;
+            }
+            set
+            {
+                _PREEncryptedSymmetricIVClient = value;
             }
         }
 

@@ -9492,27 +9492,27 @@ namespace Microsoft.Data.SqlClient
                             byte[] valueBytes = (byte[])value;
                             byte[] result_preforward = new byte[1 + 32 + 16 + (valueBytes.Length - (valueBytes.Length % 16))];
 
-                            /*
-                            // TODO reuse IV and key is bad;
-                            {
-                                RSA rsaproxy = RSA.Create();
-                                rsaproxy.ImportFromPem(privatekey);
-
-                                if (command.PRESymmetricKeyCache == null || command.PRESymmetricIVCache == null)
-                                {
-                                    command.PRESymmetricKeyCache = rsa.Decrypt(command.PREEncryptedSymmetricKey, RSAEncryptionPadding.OaepSHA256);
-                                    command.PRESymmetricIVCache = rsa.Decrypt(command.PREEncryptedSymmetricIV, RSAEncryptionPadding.OaepSHA256);
-                                }
-
-                            } */
+                            // TODO only create session the first time for this connection/command
 
                             // Create new session between client - proxy
                             int x = command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
                             if (x != 1)
                             {
-                                Console.WriteLine("Error setting prenclave session");
+                                Console.WriteLine("Error setting prenclave session: " + x);
                                 throw new Exception("Error in prenclave forward. Could not create enclave session.");
                             }
+
+                            byte[] encryptedSymmetricKeyClient = new byte[256];
+                            byte[] encryptedSymmetricIVClient = new byte[256];
+                            x = command.Connection._PREnclave.enclave_get_session_client(encryptedSymmetricKeyClient, encryptedSymmetricIVClient);
+                            if (x != 1)
+                            {
+                                Console.WriteLine("Error getting prenclave session: " + x);
+                                throw new Exception("Error in prenclave forward. Could not get enclave session.");
+                            }
+
+                            command.PREEncryptedSymmetricKeyClient = encryptedSymmetricKeyClient;
+                            command.PREEncryptedSymmetricIVClient = encryptedSymmetricIVClient;
 
                             // For simplicity just obtain database private key here; (makes whole idea obsolete as key is in insecure memory)
                             if (!param.CipherMetadata.IsAlgorithmInitialized())
@@ -9614,7 +9614,7 @@ dGhvHz35g4CXp40B9KUTJw ==
                             }
                         }
 #else
-                            throw new Exception("Error in prenclave forward. This dotnet verison is not supported");
+                        throw new Exception("Error in prenclave forward. This dotnet verison is not supported");
 #endif
                     }
                     else

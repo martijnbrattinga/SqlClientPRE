@@ -242,7 +242,7 @@ namespace Microsoft.Data.SqlClient
                         Debug.Assert(hash.Length >= authenticationTagLen, "Unexpected hash size");
                         Buffer.BlockCopy(hash, 0, outBuffer, hmacStartIndex, authenticationTagLen);
 
-                        Console.WriteLine("Encrypted value " + Convert.ToBase64String(plainText) + " into " + Convert.ToBase64String(outBuffer) + " thus IV is " + Convert.ToBase64String(iv) + " and key is " + Convert.ToBase64String(aesAlg.Key) + " while MAC key is "  + Convert.ToBase64String(hmac.Key));
+                        //Console.WriteLine("Encrypted value " + Convert.ToBase64String(plainText) + " into " + Convert.ToBase64String(outBuffer) + " thus IV is " + Convert.ToBase64String(iv) + " and key is " + Convert.ToBase64String(aesAlg.Key) + " while MAC key is "  + Convert.ToBase64String(hmac.Key));
                     }
                 }
             }

@@ -55,7 +55,7 @@ kQIDAQAB
 //**** Settings ****//
 int test = 1; // 0 = ExecuteScalar (INSERT), 1=ExecuteReader (SELECT WHERE)
 bool AlwaysEncrypted = true;
-string PRE = "BidirectionalTEE"; // Bidirectional, Forward, Backward, BidirectionalTEE, ForwardTEE, BackwardTEE
+string PRE = ""; // Bidirectional, Forward, Backward, BidirectionalTEE, ForwardTEE, BackwardTEE
 Console.WriteLine("Running the SQL test program with AE=" + AlwaysEncrypted + " and PRE=" + PRE);
 
 
@@ -165,10 +165,13 @@ else if (test == 1){ // ExecuteReader
     {
         SqlCommand cmd = connection.CreateCommand();
         cmd.CommandText = @"SELECT * FROM users WHERE BSN=@BSN"; // SELECT query targetting the encrypted column BSN
-        cmd.PREPublicKey = publickeyBytesClient; // Setting the public key of the client, such that the data can be encrypted towards this key on result. (Actually only used for key encapsulation, where the data is encrypted using AES; IV and Key using RSA)
-        cmd.PREEncryptedSymmetricKey = encryptedSymmetricKey; // Received encrypted session key from client; Can be used to decrypt incoming data.
-        cmd.PREEncryptedSymmetricIV = encryptedSymmetricIV; // Received encrypted session IV from client; Can be used to decrypt incoming data.
+        if (AlwaysEncrypted && (PRE == "Forward" || PRE=="Backward" || PRE == "Bidirectional" || PRE == "ForwardTEE" || PRE=="BackwardTEE" || PRE == "BidirectionalTEE"))
+        {
 
+            cmd.PREPublicKey = publickeyBytesClient; // Setting the public key of the client, such that the data can be encrypted towards this key on result. (Actually only used for key encapsulation, where the data is encrypted using AES; IV and Key using RSA)
+            cmd.PREEncryptedSymmetricKey = encryptedSymmetricKey; // Received encrypted session key from client; Can be used to decrypt incoming data.
+            cmd.PREEncryptedSymmetricIV = encryptedSymmetricIV; // Received encrypted session IV from client; Can be used to decrypt incoming data.
+        }
         //SqlParameter p = new SqlParameter("@Lastname", System.Data.SqlDbType.VarChar);
         //p.Value = new byte[] { 67, 97, 109, 112 };
         //p.Value = "Camp";
@@ -176,7 +179,7 @@ else if (test == 1){ // ExecuteReader
         
         // If PRE is used set the encrypted value (in bytes), otherwise just use normal integer value
         SqlParameter p = new SqlParameter("@BSN", System.Data.SqlDbType.Int);
-        if (PRE != "" && PRE != "Disabled")
+        if (AlwaysEncrypted && PRE != "" && PRE != "Disabled")
         {
             p.Value = val;
         }
@@ -188,6 +191,7 @@ else if (test == 1){ // ExecuteReader
 
 
         // Open connection and execute query
+        
         connection.Open();
         using (SqlDataReader reader = cmd.ExecuteReader())
         {

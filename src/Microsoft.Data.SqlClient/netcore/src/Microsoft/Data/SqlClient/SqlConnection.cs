@@ -167,6 +167,8 @@ namespace Microsoft.Data.SqlClient
         {
             ConnectionString = connectionString;    // setting connection string first so that ConnectionOption is available
             Console.WriteLine("added print statement in SqlConnection line 168 :)");
+            if (IsColumnEncryptionPRESettingTEE && (IsColumnEncryptionPRESettingForward || IsColumnEncryptionPRESettingBackward))
+            {
 #if NETCOREAPP
                         string privatekey = @"
 -----BEGIN PRIVATE KEY-----
@@ -199,15 +201,21 @@ dGhvHz35g4CXp40B9KUTJw ==
 -----END PRIVATE KEY-----
 ";
 
-            EnclaveLinkManaged.init();
             _PREnclave = new EnclaveLinkManaged();
+
             RSA rsa = RSA.Create();
             rsa.ImportFromPem(privatekey);
+            Console.WriteLine("the proxy public key subject info: ");
+            Console.WriteLine(Convert.ToBase64String(rsa.ExportSubjectPublicKeyInfo()));
             int x = _PREnclave.enclave_set_private_key_proxy_insecure(rsa.ExportPkcs8PrivateKey());
             if(x != 1){
-                Console.WriteLine("Error setting enclave private key");
+                Console.WriteLine("Error setting enclave private key:" + x);
+                    throw new Exception("Error setting enclave private proxy RSA key");
             }
+#else
+                throw new Exception("Error in creating EnclaveLinkManaged: dotnet version not supported.");
 #endif
+            }
         }
 
         /// <include file='../../../../../../../doc/snippets/Microsoft.Data.SqlClient/SqlConnection.xml' path='docs/members[@name="SqlConnection"]/ctorConnectionStringCredential/*' />
