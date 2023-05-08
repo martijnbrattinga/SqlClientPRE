@@ -205,6 +205,7 @@ namespace Microsoft.Data.SqlClient
             set
             {
                 _PREPublicKey = value;
+                MaybeUpdateSymmetricInfoClient();
             }
         }
 
@@ -220,6 +221,7 @@ namespace Microsoft.Data.SqlClient
             set
             {
                 _PREEncryptedSymmetricKey = value;
+                MaybeUpdateSymmetricInfoClient();
             }
         }
 
@@ -235,6 +237,7 @@ namespace Microsoft.Data.SqlClient
             set
             {
                 _PREEncryptedSymmetricIV = value;
+                MaybeUpdateSymmetricInfoClient();
             }
         }
 
@@ -298,6 +301,54 @@ namespace Microsoft.Data.SqlClient
             {
                 _PRESymmetricIVCache = value;
             }
+        }
+
+        private bool MaybeUpdateSymmetricInfoClient()
+        {
+            if (!Connection.IsColumnEncryptionPRESettingTEE)
+            {
+                return false;
+            }
+
+            if(PREEncryptedSymmetricKey == null || PREEncryptedSymmetricIV == null || PREPublicKey == null)
+            { // We do not have all required information yet
+                return false;
+            }
+
+#if NETCOREAPP
+            // Create new session between client - proxy
+            int x = Connection._PREnclave.enclave_session(PREEncryptedSymmetricKey, PREEncryptedSymmetricIV, PREPublicKey);
+            if (x != 1)
+            {
+                if ( x == 103)
+                { // We did only set the public key, which in some scenarios is ok
+                    Console.WriteLine("PREnclave: only set public key for this session");
+
+                }
+                else
+                {
+                    Console.WriteLine("Error setting prenclave session: " + x);
+                    throw new Exception("Error in setting prenclave session.");
+                }
+                
+            }
+
+            byte[] encryptedSymmetricKeyClient = new byte[256];
+            byte[] encryptedSymmetricIVClient = new byte[256];
+            x = Connection._PREnclave.enclave_get_session_client(encryptedSymmetricKeyClient, encryptedSymmetricIVClient);
+            if (x != 1)
+            {
+                Console.WriteLine("Error getting prenclave session: " + x);
+                throw new Exception("Error in getting prenclave session.");
+            }
+
+            PREEncryptedSymmetricKeyClient = encryptedSymmetricKeyClient;
+            PREEncryptedSymmetricIVClient = encryptedSymmetricIVClient;
+            return true;
+
+#else
+                        throw new Exception("Error in MaybeUpdateSymmetricInfoClient. This dotnet verison is not supported");
+#endif
         }
 
 

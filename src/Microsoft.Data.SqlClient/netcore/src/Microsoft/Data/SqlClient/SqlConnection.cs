@@ -166,7 +166,7 @@ namespace Microsoft.Data.SqlClient
         public SqlConnection(string connectionString) : this()
         {
             ConnectionString = connectionString;    // setting connection string first so that ConnectionOption is available
-            Console.WriteLine("added print statement in SqlConnection line 168 :)");
+            Console.WriteLine("Launched a new instance of the custom SqlConnection :)");
             if (IsColumnEncryptionPRESettingTEE && (IsColumnEncryptionPRESettingForward || IsColumnEncryptionPRESettingBackward))
             {
 #if NETCOREAPP
@@ -205,8 +205,8 @@ dGhvHz35g4CXp40B9KUTJw ==
 
             RSA rsa = RSA.Create();
             rsa.ImportFromPem(privatekey);
-            Console.WriteLine("the proxy public key subject info: ");
-            Console.WriteLine(Convert.ToBase64String(rsa.ExportSubjectPublicKeyInfo()));
+            //Console.WriteLine("the proxy public key subject info: ");
+            //Console.WriteLine(Convert.ToBase64String(rsa.ExportSubjectPublicKeyInfo()));
             int x = _PREnclave.enclave_set_private_key_proxy_insecure(rsa.ExportPkcs8PrivateKey());
             if(x != 1){
                 Console.WriteLine("Error setting enclave private key:" + x);

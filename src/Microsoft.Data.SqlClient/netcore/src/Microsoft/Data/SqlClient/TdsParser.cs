@@ -6079,12 +6079,30 @@ namespace Microsoft.Data.SqlClient
                                 Console.WriteLine("PRE backward with TEE");
 
                                 byte[] valueBytes = (byte[])b;
+
                                 byte[] result_prebackward = new byte[b.Length - 1 - 32 - 16]; // Buffer the size of the ciphertext minus version byte, MAC, IV
 #if NETCOREAPP
                                 /*
                                  * Re-using enclave session thus no need to create again
                                 command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
                                 */
+
+                                // Set db key
+                                if (!md.cipherMD.IsAlgorithmInitialized())
+                                {
+                                    SqlSecurityUtility.DecryptSymmetricKey(md.cipherMD, _connHandler.Connection, command);
+                                }
+                                byte[] rootkey = SqlSecurityUtility.GetKeyFromLocalProviders(md.cipherMD.EncryptionKeyInfo, _connHandler.Connection, command).RootKey;
+
+                                // Set database private key in enclave (again, from untrusted = insecure)
+                                int y = command.Connection._PREnclave.enclave_set_key_db_insecure(rootkey);
+                                if (y != 1)
+                                {
+                                    Console.WriteLine("Error setting prenclave database private key: " + y);
+                                    throw new Exception("Error in prenclave backward. Could not set db key.");
+                                }
+
+                                
 
                                 // Re-encrypt value
                                 int x = command.Connection._PREnclave.enclave_PREBackward(valueBytes, result_prebackward);
@@ -6094,7 +6112,7 @@ namespace Microsoft.Data.SqlClient
                                 }
                                 else
                                 {
-                                    Console.WriteLine("Error in prenclave backward :(");
+                                    Console.WriteLine("Error in prenclave backward: " + x);
                                     throw new Exception("Error in prenclave backward.");
                                 }
                             }
@@ -9492,27 +9510,7 @@ namespace Microsoft.Data.SqlClient
                             byte[] valueBytes = (byte[])value;
                             byte[] result_preforward = new byte[1 + 32 + 16 + (valueBytes.Length - (valueBytes.Length % 16))];
 
-                            // TODO only create session the first time for this connection/command
 
-                            // Create new session between client - proxy
-                            int x = command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
-                            if (x != 1)
-                            {
-                                Console.WriteLine("Error setting prenclave session: " + x);
-                                throw new Exception("Error in prenclave forward. Could not create enclave session.");
-                            }
-
-                            byte[] encryptedSymmetricKeyClient = new byte[256];
-                            byte[] encryptedSymmetricIVClient = new byte[256];
-                            x = command.Connection._PREnclave.enclave_get_session_client(encryptedSymmetricKeyClient, encryptedSymmetricIVClient);
-                            if (x != 1)
-                            {
-                                Console.WriteLine("Error getting prenclave session: " + x);
-                                throw new Exception("Error in prenclave forward. Could not get enclave session.");
-                            }
-
-                            command.PREEncryptedSymmetricKeyClient = encryptedSymmetricKeyClient;
-                            command.PREEncryptedSymmetricIVClient = encryptedSymmetricIVClient;
 
                             // For simplicity just obtain database private key here; (makes whole idea obsolete as key is in insecure memory)
                             if (!param.CipherMetadata.IsAlgorithmInitialized())
@@ -9522,12 +9520,14 @@ namespace Microsoft.Data.SqlClient
                             byte[] rootkey = SqlSecurityUtility.GetKeyFromLocalProviders(param.CipherMetadata.EncryptionKeyInfo, _connHandler.Connection, command).RootKey;
 
                             // Set database private key in enclave (again, from untrusted = insecure)
-                            x = command.Connection._PREnclave.enclave_set_key_db_insecure(rootkey);
+                            int x = command.Connection._PREnclave.enclave_set_key_db_insecure(rootkey);
                             if (x != 1)
                             {
                                 Console.WriteLine("Error setting prenclave database private key");
                                 throw new Exception("Error in prenclave forward. Could not set db key.");
                             }
+
+
 
                             // Proxy re-encrypt
                             x = command.Connection._PREnclave.enclave_PREForward(valueBytes, result_preforward);
@@ -9585,6 +9585,15 @@ dGhvHz35g4CXp40B9KUTJw ==
                                 Aes aes = Aes.Create();
                                 aes.Key = rsaproxy.Decrypt(command.PREEncryptedSymmetricKey, RSAEncryptionPadding.OaepSHA256);
                                 aes.IV = rsaproxy.Decrypt(command.PREEncryptedSymmetricIV, RSAEncryptionPadding.OaepSHA256);
+
+                                if (command.PREEncryptedSymmetricKeyClient == null || command.PREEncryptedSymmetricIVClient == null)
+                                {
+                                    RSA rsa_client_public = RSA.Create();
+                                    rsa_client_public.ImportFromPem(Encoding.UTF8.GetString(command.PREPublicKey).ToCharArray());
+                                    command.PREEncryptedSymmetricKeyClient = rsa_client_public.Encrypt(aes.Key, RSAEncryptionPadding.OaepSHA256);
+                                    command.PREEncryptedSymmetricIVClient = rsa_client_public.Encrypt(aes.IV, RSAEncryptionPadding.OaepSHA256);
+                                }
+                                
 
                                 byte[] valueBytes = (byte[])value;
                                 byte[] plainValue;
