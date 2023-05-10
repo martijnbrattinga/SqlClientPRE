@@ -28,6 +28,7 @@
     <ProjectProperties>Configuration=$(Configuration);AssemblyFileVersion=$(AssemblyFileVersion);TargetsWindows=$(TargetsWindows);TargetsUnix=$(TargetsUnix);</ProjectProperties>
     <TestProjectProperties>BuildProjectReferences=false;$(ProjectProperties);BuildForRelease=false;TargetNetCoreVersion=$(TargetNetCoreVersion);TargetNetFxVersion=$(TargetNetFxVersion)</TestProjectProperties>
     <ResultsDirectory Condition="$(ResultsDirectory) == ''">TestResults</ResultsDirectory>
+
     <!-- 
       Path to a `dotnet` version like a x86 or any especific versions in addition to a default installed version.
       This property is empty by default to use the default path of the system's path variable. 
@@ -35,6 +36,10 @@
     -->
     <DotnetPath></DotnetPath>
   </PropertyGroup>
+
+
+
+
 
   <!-- Release Build properties must be turned on for Release purposes, and turned off for Code Coverage calculations -->
   <PropertyGroup>
