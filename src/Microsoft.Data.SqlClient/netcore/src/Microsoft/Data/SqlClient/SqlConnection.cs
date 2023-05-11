@@ -166,7 +166,7 @@ namespace Microsoft.Data.SqlClient
         public SqlConnection(string connectionString) : this()
         {
             ConnectionString = connectionString;    // setting connection string first so that ConnectionOption is available
-            Console.WriteLine("Launched a new instance of the custom SqlConnection :)");
+            //Console.WriteLine("Launched a new instance of the custom SqlConnection :)");
             if (IsColumnEncryptionPRESettingTEE && (IsColumnEncryptionPRESettingForward || IsColumnEncryptionPRESettingBackward))
             {
 #if NETCOREAPP

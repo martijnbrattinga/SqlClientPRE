@@ -9,10 +9,12 @@ using System.Security.Cryptography;
 using System.Text;
 using TesterSqlClient;
 
-//Tests tests = new Tests(true);
+Tests tests = new Tests(true);
 //tests.TestAll();
+tests.ClearDatabase();
+tests.InitializeDatabase(10000000);
 
-var summary = BenchmarkRunner.Run<Tests>();
+//var summary = BenchmarkRunner.Run<Tests>();
 
 
 

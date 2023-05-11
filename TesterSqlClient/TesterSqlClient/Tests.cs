@@ -7,10 +7,17 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Columns;
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Engines;
 using Microsoft.Data.SqlClient;
+using Microsoft.Diagnostics.Runtime.Utilities;
 
 namespace TesterSqlClient
 {
+
+    [Config(typeof(Config))]
+    //[SimpleJob(RunStrategy.ColdStart, launchCount: 4, warmupCount: 3, iteration: 20, id: "MyJob")]
     public class Tests
     {
 
@@ -21,6 +28,8 @@ namespace TesterSqlClient
         Aes aes_client;
         RSA rsa_client;
         RSA rsa_proxy;
+
+        Random random;
 
         public Tests() : this(false)
         {
@@ -38,22 +47,43 @@ namespace TesterSqlClient
             this.rsa_client = RSA.Create();
             this.rsa_proxy = RSA.Create();
             this.rsa_proxy.ImportFromPem(privatekey); // Hardcoded private key at bottom of this class
+
+            this.random = new Random();
         }
 
-        private void TestPrint(string msg)
+        private class Config : ManualConfig
         {
-            if (this.debug)
+            public Config()
             {
-                Console.WriteLine(msg);
+                AddColumn(
+                    StatisticColumn.P0,
+                    StatisticColumn.P25,
+                    StatisticColumn.P67,
+                    StatisticColumn.P90,
+                    StatisticColumn.P95,
+                    StatisticColumn.P100);
             }
         }
-        private void TestPrint(string template, string value)
+
+        public IEnumerable<object[]> TryLimits()
         {
-            if (this.debug)
-            {
-                Console.WriteLine(template, value);
-            }
+            yield return new object[] { 1 };
+            //yield return new object[] { 10 };
+            //yield return new object[] { 100 };
+            yield return new object[] { 1000 };
         }
+
+        [Params(1000, 1000000)]
+        public int DB_SIZE { get; set; }
+
+        [GlobalSetup]
+        public void GlobalSetup()
+        {
+            ClearDatabase();
+            InitializeDatabase(DB_SIZE);
+        }
+
+        
 
         // Manually run all tests, e.g. to test functionality not broken
         public bool TestAll()
@@ -97,13 +127,11 @@ namespace TesterSqlClient
             return result;
         }
 
-        public IEnumerable<object[]> TryLimits() 
-        {
-            yield return new object[] { 1 };
-            //yield return new object[] { 10 };
-            //yield return new object[] { 100 };
-            yield return new object[] { 1000 };
-        }
+        
+
+
+
+
 
 
         /**************** Non-AE tests ****************/
@@ -124,29 +152,31 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) id, firstname, birth_place FROM users";
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT TOP(@Limit) id, firstname, birth_place FROM users";
+
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
+                        while (reader.Read())
                         {
-                            int id_string = reader.GetInt32(reader.GetOrdinal("id"));
-                            string firstname_string = reader.GetString(reader.GetOrdinal("firstname"));
-                            string birth_place_string = reader.GetString(reader.GetOrdinal("birth_place"));
+                            {
+                                int id_string = reader.GetInt32(reader.GetOrdinal("id"));
+                                string firstname_string = reader.GetString(reader.GetOrdinal("firstname"));
+                                string birth_place_string = reader.GetString(reader.GetOrdinal("birth_place"));
 
-                            TestPrint("Normal firstname: " + firstname_string);
+                                TestPrint("Normal firstname: " + firstname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
-                }
+                }          
             }
 
 
@@ -162,29 +192,31 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) bsn, lastname, postal_code FROM users";
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT TOP(@Limit) bsn, lastname, postal_code FROM users";
+
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
-                            byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
-                            byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
+                                byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
+                                byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
 
-                            string lastname_string = Convert.ToBase64String(lastname);
-                            TestPrint("Normal bsn (encoded): " + lastname_string);
+                                string lastname_string = Convert.ToBase64String(lastname);
+                                TestPrint("Normal bsn (encoded): " + lastname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -198,34 +230,36 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT * FROM users WHERE id = @Id";
-
-                SqlParameter p2 = new SqlParameter("@Id", System.Data.SqlDbType.Int);
-                p2.Value = 4;
-                cmd.Parameters.Add(p2);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT * FROM users WHERE id = @Id";
+
+                    SqlParameter p2 = new SqlParameter("@Id", System.Data.SqlDbType.Int);
+                    p2.Value = 4;
+                    cmd.Parameters.Add(p2);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
-                            DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
-                            string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
+                                DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
+                                string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
 
-                            string lastname_string = Convert.ToBase64String(lastname);
-                            TestPrint("Normal lastname (encoded): " + lastname_string);
+                                string lastname_string = Convert.ToBase64String(lastname);
+                                TestPrint("Normal lastname (encoded): " + lastname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -240,40 +274,42 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) * FROM users JOIN DriversLicenses ON Users.id=DriversLicenses.user_id;";
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT TOP(@Limit) * FROM users JOIN DriversLicenses ON Users.id=DriversLicenses.user_id;";
+
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
-                            DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
-                            string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
+                                DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
+                                string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
 
-                            int drivers_license_id = reader.GetInt32(reader.GetOrdinal("drivers_license_id"));
-                            DateTime assigned = reader.GetDateTime(reader.GetOrdinal("assigned"));
-                            DateTime expired = reader.GetDateTime(reader.GetOrdinal("expired"));
-                            int penalty_points = reader.GetInt32(reader.GetOrdinal("penalty_points"));
+                                int drivers_license_id = reader.GetInt32(reader.GetOrdinal("drivers_license_id"));
+                                DateTime assigned = reader.GetDateTime(reader.GetOrdinal("assigned"));
+                                DateTime expired = reader.GetDateTime(reader.GetOrdinal("expired"));
+                                int penalty_points = reader.GetInt32(reader.GetOrdinal("penalty_points"));
 
 
-                            string lastname_string = Convert.ToBase64String(lastname);
-                            TestPrint("Normal lastname (encoded): " + lastname_string);
+                                string lastname_string = Convert.ToBase64String(lastname);
+                                TestPrint("Normal lastname (encoded): " + lastname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -295,27 +331,29 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) id, firstname, birth_place FROM users";
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
-                    {
-                        {
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            TestPrint("AE firstname: " + firstname);
-                        }
+                    cmd.CommandText = @"SELECT TOP(@Limit) id, firstname, birth_place FROM users";
 
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            {
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                TestPrint("AE firstname: " + firstname);
+                            }
+
+                        }
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -330,28 +368,30 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) bsn, lastname, postal_code FROM users";
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT TOP(@Limit) bsn, lastname, postal_code FROM users";
+
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
+                        while (reader.Read())
                         {
-                            int bsn = reader.GetInt32(reader.GetOrdinal("bsn"));
-                            string lastname = reader.GetString(reader.GetOrdinal("lastname"));
-                            string postal_code = reader.GetString(reader.GetOrdinal("postal_code"));
+                            {
+                                int bsn = reader.GetInt32(reader.GetOrdinal("bsn"));
+                                string lastname = reader.GetString(reader.GetOrdinal("lastname"));
+                                string postal_code = reader.GetString(reader.GetOrdinal("postal_code"));
 
-                            TestPrint("AE lastname: " + lastname);
+                                TestPrint("AE lastname: " + lastname);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -365,33 +405,35 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT * FROM users WHERE id = @Id";
-
-                SqlParameter p2 = new SqlParameter("@Id", System.Data.SqlDbType.Int);
-                p2.Value = 4;
-                cmd.Parameters.Add(p2);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT * FROM users WHERE id = @Id";
+
+                    SqlParameter p2 = new SqlParameter("@Id", System.Data.SqlDbType.Int);
+                    p2.Value = 4;
+                    cmd.Parameters.Add(p2);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            int bsn = reader.GetInt32(reader.GetOrdinal("bsn"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            string lastname = reader.GetString(reader.GetOrdinal("lastname"));
-                            DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            string postal_code = reader.GetString(reader.GetOrdinal("postal_code"));
-                            string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                int bsn = reader.GetInt32(reader.GetOrdinal("bsn"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                string lastname = reader.GetString(reader.GetOrdinal("lastname"));
+                                DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                string postal_code = reader.GetString(reader.GetOrdinal("postal_code"));
+                                string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
 
-                            TestPrint("AE lastname: " + lastname);
+                                TestPrint("AE lastname: " + lastname);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -405,33 +447,35 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT * FROM users WHERE bsn = @BSN";
-
-                SqlParameter p2 = new SqlParameter("@BSN", System.Data.SqlDbType.Int);
-                p2.Value = 4;
-                cmd.Parameters.Add(p2);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT * FROM users WHERE bsn = @BSN";
+
+                    SqlParameter p2 = new SqlParameter("@BSN", System.Data.SqlDbType.Int);
+                    p2.Value = 4;
+                    cmd.Parameters.Add(p2);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            int bsn = reader.GetInt32(reader.GetOrdinal("bsn"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            string lastname = reader.GetString(reader.GetOrdinal("lastname"));
-                            DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            string postal_code = reader.GetString(reader.GetOrdinal("postal_code"));
-                            string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                int bsn = reader.GetInt32(reader.GetOrdinal("bsn"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                string lastname = reader.GetString(reader.GetOrdinal("lastname"));
+                                DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                string postal_code = reader.GetString(reader.GetOrdinal("postal_code"));
+                                string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
 
-                            TestPrint("AE lastname: " + lastname);
+                                TestPrint("AE lastname: " + lastname);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -446,38 +490,40 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) * FROM users JOIN DriversLicenses ON Users.id=DriversLicenses.user_id;";
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT TOP(@Limit) * FROM users JOIN DriversLicenses ON Users.id=DriversLicenses.user_id;";
+
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            int bsn = reader.GetInt32(reader.GetOrdinal("bsn"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            string lastname = reader.GetString(reader.GetOrdinal("lastname"));
-                            DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            string postal_code = reader.GetString(reader.GetOrdinal("postal_code"));
-                            string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                int bsn = reader.GetInt32(reader.GetOrdinal("bsn"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                string lastname = reader.GetString(reader.GetOrdinal("lastname"));
+                                DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                string postal_code = reader.GetString(reader.GetOrdinal("postal_code"));
+                                string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
 
-                            int drivers_license_id = reader.GetInt32(reader.GetOrdinal("drivers_license_id"));
-                            DateTime assigned = reader.GetDateTime(reader.GetOrdinal("assigned"));
-                            DateTime expired = reader.GetDateTime(reader.GetOrdinal("expired"));
-                            int penalty_points = reader.GetInt32(reader.GetOrdinal("penalty_points"));
+                                int drivers_license_id = reader.GetInt32(reader.GetOrdinal("drivers_license_id"));
+                                DateTime assigned = reader.GetDateTime(reader.GetOrdinal("assigned"));
+                                DateTime expired = reader.GetDateTime(reader.GetOrdinal("expired"));
+                                int penalty_points = reader.GetInt32(reader.GetOrdinal("penalty_points"));
 
-                            TestPrint("AE lastname: " + lastname);
+                                TestPrint("AE lastname: " + lastname);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -510,28 +556,30 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE + PREsetting))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) id, firstname, birth_place FROM users";
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT TOP(@Limit) id, firstname, birth_place FROM users";
+
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
+                        while (reader.Read())
                         {
-                            int id_string = reader.GetInt32(reader.GetOrdinal("id"));
-                            string firstname_string = reader.GetString(reader.GetOrdinal("firstname"));
-                            string birth_place_string = reader.GetString(reader.GetOrdinal("birth_place"));
+                            {
+                                int id_string = reader.GetInt32(reader.GetOrdinal("id"));
+                                string firstname_string = reader.GetString(reader.GetOrdinal("firstname"));
+                                string birth_place_string = reader.GetString(reader.GetOrdinal("birth_place"));
 
-                            TestPrint("PRE firstname: " + firstname_string);
+                                TestPrint("PRE firstname: " + firstname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -560,32 +608,34 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE + PREsetting))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) bsn, lastname, postal_code FROM users";
-                cmd.PREPublicKey = public_key_client;
-                cmd.PREEncryptedSymmetricKey = enc_symmetric_key;
-                cmd.PREEncryptedSymmetricIV = enc_symmetric_IV;
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT TOP(@Limit) bsn, lastname, postal_code FROM users";
+                    cmd.PREPublicKey = public_key_client;
+                    cmd.PREEncryptedSymmetricKey = enc_symmetric_key;
+                    cmd.PREEncryptedSymmetricIV = enc_symmetric_IV;
+
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
-                            byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
-                            byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
+                                byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
+                                byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
 
-                            string lastname_string = Convert.ToBase64String(lastname);
-                            TestPrint("PRE bsn (encoded): " + lastname_string);
+                                string lastname_string = Convert.ToBase64String(lastname);
+                                TestPrint("PRE bsn (encoded): " + lastname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -611,37 +661,39 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE + PREsetting))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT * FROM users WHERE id = @Id";
-                cmd.PREPublicKey = public_key_client;
-                cmd.PREEncryptedSymmetricKey = enc_symmetric_key;
-                cmd.PREEncryptedSymmetricIV = enc_symmetric_IV;
-
-                SqlParameter p2 = new SqlParameter("@Id", System.Data.SqlDbType.Int);
-                p2.Value = 4;
-                cmd.Parameters.Add(p2);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT * FROM users WHERE id = @Id";
+                    cmd.PREPublicKey = public_key_client;
+                    cmd.PREEncryptedSymmetricKey = enc_symmetric_key;
+                    cmd.PREEncryptedSymmetricIV = enc_symmetric_IV;
+
+                    SqlParameter p2 = new SqlParameter("@Id", System.Data.SqlDbType.Int);
+                    p2.Value = 4;
+                    cmd.Parameters.Add(p2);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
-                            DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
-                            string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
+                                DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
+                                string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
 
-                            string lastname_string = Convert.ToBase64String(lastname);
-                            TestPrint("PRE lastname (encoded): " + lastname_string);
+                                string lastname_string = Convert.ToBase64String(lastname);
+                                TestPrint("PRE lastname (encoded): " + lastname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -669,37 +721,39 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE + PREsetting))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT * FROM users WHERE bsn = @BSN";
-                cmd.PREPublicKey = public_key_client;
-                cmd.PREEncryptedSymmetricKey = enc_symmetric_key;
-                cmd.PREEncryptedSymmetricIV = enc_symmetric_IV;
-
-                SqlParameter p2 = new SqlParameter("@BSN", System.Data.SqlDbType.Int);
-                p2.Value = value; // The client encrypted value
-                cmd.Parameters.Add(p2);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT * FROM users WHERE bsn = @BSN";
+                    cmd.PREPublicKey = public_key_client;
+                    cmd.PREEncryptedSymmetricKey = enc_symmetric_key;
+                    cmd.PREEncryptedSymmetricIV = enc_symmetric_IV;
+
+                    SqlParameter p2 = new SqlParameter("@BSN", System.Data.SqlDbType.Int);
+                    p2.Value = value; // The client encrypted value
+                    cmd.Parameters.Add(p2);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
-                            DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
-                            string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
+                                DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
+                                string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
 
-                            string lastname_string = Convert.ToBase64String(lastname);
-                            TestPrint("PRE lastname (encoded): " + lastname_string);
+                                string lastname_string = Convert.ToBase64String(lastname);
+                                TestPrint("PRE lastname (encoded): " + lastname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -729,43 +783,45 @@ namespace TesterSqlClient
 
             using (SqlConnection connection = new SqlConnection(connectionStringAE + PREsetting))
             {
-                SqlCommand cmd = connection.CreateCommand();
-                cmd.CommandText = @"SELECT TOP(@Limit) * FROM users JOIN DriversLicenses ON Users.id=DriversLicenses.user_id;";
-                cmd.PREPublicKey = public_key_client;
-                cmd.PREEncryptedSymmetricKey = enc_symmetric_key;
-                cmd.PREEncryptedSymmetricIV = enc_symmetric_IV;
-
-                SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
-                p.Value = limit;
-                cmd.Parameters.Add(p);
-
-                connection.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (SqlCommand cmd = connection.CreateCommand())
                 {
-                    while (reader.Read())
+                    cmd.CommandText = @"SELECT TOP(@Limit) * FROM users JOIN DriversLicenses ON Users.id=DriversLicenses.user_id;";
+                    cmd.PREPublicKey = public_key_client;
+                    cmd.PREEncryptedSymmetricKey = enc_symmetric_key;
+                    cmd.PREEncryptedSymmetricIV = enc_symmetric_IV;
+
+                    SqlParameter p = new SqlParameter("@Limit", System.Data.SqlDbType.Int);
+                    p.Value = limit;
+                    cmd.Parameters.Add(p);
+
+                    connection.Open();
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
-                            int id = reader.GetInt32(reader.GetOrdinal("id"));
-                            byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
-                            string firstname = reader.GetString(reader.GetOrdinal("firstname"));
-                            byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
-                            DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
-                            string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
-                            byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
-                            string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
+                        while (reader.Read())
+                        {
+                            { // Always encrypted is not enabled here, but it is on the column in the database. Therefore we obtain the raw bytes from the database, encrypted under the database CEK
+                                int id = reader.GetInt32(reader.GetOrdinal("id"));
+                                byte[] bsn = (byte[])reader.GetValue(reader.GetOrdinal("bsn"));
+                                string firstname = reader.GetString(reader.GetOrdinal("firstname"));
+                                byte[] lastname = (byte[])reader.GetValue(reader.GetOrdinal("lastname"));
+                                DateTime birth_date = reader.GetDateTime(reader.GetOrdinal("birth_date"));
+                                string birth_place = reader.GetString(reader.GetOrdinal("birth_place"));
+                                byte[] postal_code = (byte[])reader.GetValue(reader.GetOrdinal("postal_code"));
+                                string house_nr = reader.GetString(reader.GetOrdinal("house_nr"));
 
-                            int drivers_license_id = reader.GetInt32(reader.GetOrdinal("drivers_license_id"));
-                            DateTime assigned = reader.GetDateTime(reader.GetOrdinal("assigned"));
-                            DateTime expired = reader.GetDateTime(reader.GetOrdinal("expired"));
-                            int penalty_points = reader.GetInt32(reader.GetOrdinal("penalty_points"));
+                                int drivers_license_id = reader.GetInt32(reader.GetOrdinal("drivers_license_id"));
+                                DateTime assigned = reader.GetDateTime(reader.GetOrdinal("assigned"));
+                                DateTime expired = reader.GetDateTime(reader.GetOrdinal("expired"));
+                                int penalty_points = reader.GetInt32(reader.GetOrdinal("penalty_points"));
 
 
-                            string lastname_string = Convert.ToBase64String(lastname);
-                            TestPrint("PRE lastname (encoded): " + lastname_string);
+                                string lastname_string = Convert.ToBase64String(lastname);
+                                TestPrint("PRE lastname (encoded): " + lastname_string);
+                            }
+
                         }
-
+                        reader.Close();
                     }
-                    reader.Close();
                 }
             }
 
@@ -808,6 +864,148 @@ KtBOr0qL2I7rt0QPaSBCpvknFmSMKrwVekY2bcF00T / EmArD6N4TLjLP9bV3x / xn
 dGhvHz35g4CXp40B9KUTJw ==
 -----END PRIVATE KEY-----
 ";
+
+
+        private void TestPrint(string msg)
+        {
+            if (this.debug)
+            {
+                Console.WriteLine(msg);
+            }
+        }
+        private void TestPrint(string template, string value)
+        {
+            if (this.debug)
+            {
+                Console.WriteLine(template, value);
+            }
+        }
+
+
+        public void ClearDatabase()
+        {
+            Console.WriteLine("Clearing database...");
+            using (SqlConnection connection = new SqlConnection(connectionStringAE))
+            {
+                // TRUNCATE does not work due to foreign key constraints, thus DELETE
+                // Also reset auto increment identity to 0
+                SqlCommand cmd = connection.CreateCommand();
+                cmd.CommandText = @"DELETE FROM DriversLicenseCodes; DELETE FROM DriversLicenses; DELETE FROM Users;DBCC CHECKIDENT (DriversLicenseCodes, RESEED, 0);DBCC CHECKIDENT (DriversLicenses, RESEED, 0);DBCC CHECKIDENT (Users, RESEED, 0)";
+
+                connection.Open();
+                cmd.ExecuteNonQuery();
+            }
+            Console.WriteLine("Done clearing database!");
+
+        }
+
+        public string RandomStringOfLength(int length)
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            return new String(Enumerable.Repeat(chars, length).Select(s => s[this.random.Next(s.Length)]).ToArray());
+        }
+
+        public string RandomCode()
+        {
+            const string chars = "ABCD";
+            return new String(Enumerable.Repeat(chars, 1).Select(s => s[this.random.Next(s.Length)]).ToArray());
+        }
+
+        public string RandomDate()
+        {
+            // Be safe, only go to day 28
+            return String.Format("{0}-{1}-{2}", this.random.Next(1900, 2020), this.random.Next(1, 12), this.random.Next(1, 28));
+        }
+
+        public void InitializeDatabase(int rows)
+        {
+            Console.WriteLine("Initializing database with " + rows + " rows...");
+            using (SqlConnection connection = new SqlConnection(connectionStringAE))
+            {
+                connection.Open();
+
+                for (int i = 0; i < rows; i++)
+                {
+                    if (i % 1000 == 0)
+                    {
+                        Console.WriteLine("Initializing database status (" + Math.Round((i * 100.0)/rows, 2) + "%) at (" + i + "/" + rows + ") rows...");
+                    }
+                    int user_id;
+                    using (SqlCommand cmd = connection.CreateCommand())
+                    {
+                        cmd.CommandText = @"INSERT dbo.Users ([BSN], [firstname], [lastname], [birth_date], [birth_place], [postal_code], [house_nr]) VALUES (@BSN, @FirstName, @LastName, @BirthDate, @Birthplace, @PostalCode, @HouseNr); SELECT CAST(scope_identity() AS int)";
+
+                        cmd.Parameters.AddWithValue("@BSN", i);
+                        cmd.Parameters.AddWithValue("@FirstName", RandomStringOfLength(6));
+                        SqlParameter plastname = new SqlParameter(parameterName: "@LastName", System.Data.SqlDbType.VarChar);
+                        plastname.Value = RandomStringOfLength(8);
+                        cmd.Parameters.Add(plastname);
+                        cmd.Parameters.AddWithValue("@BirthDate", RandomDate());
+                        cmd.Parameters.AddWithValue("@Birthplace", RandomStringOfLength(10));
+                        SqlParameter ppostalcode = new SqlParameter("@PostalCode", System.Data.SqlDbType.VarChar);
+                        ppostalcode.Value = RandomStringOfLength(6);
+                        cmd.Parameters.Add(ppostalcode);
+                        cmd.Parameters.AddWithValue("@HouseNr", this.random.Next(1000) + "");
+
+
+
+                        var result = cmd.ExecuteScalar();
+                        if (result != null)
+                        {
+                            user_id = (Int32)result;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+                    int drivers_license_id;
+                    using (SqlCommand cmd = connection.CreateCommand())
+                    {
+                        cmd.CommandText = @"INSERT dbo.DriversLicenses ([user_id], [assigned], [expired], [penalty_points]) VALUES (@UserID, @Assigned, @Expired, @PenaltyPoints); SELECT CAST(scope_identity() AS int)";
+
+                        cmd.Parameters.AddWithValue("@UserID", user_id);
+                        cmd.Parameters.AddWithValue("@Assigned", RandomDate());
+                        cmd.Parameters.AddWithValue("@Expired", RandomDate());
+                        cmd.Parameters.AddWithValue("@PenaltyPoints", this.random.Next(2));
+
+                        var result = cmd.ExecuteScalar();
+                        if (result != null)
+                        {
+                            drivers_license_id = (Int32)result;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+                    int drivers_license_code_id;
+                    using (SqlCommand cmd = connection.CreateCommand())
+                    {
+                        cmd.CommandText = @"INSERT dbo.DriversLicenseCodes ([drivers_license_id], [code], [extra]) VALUES (@DriversLicenseID, @Code, @Extra); SELECT CAST(scope_identity() AS int)";
+
+                        cmd.Parameters.AddWithValue("@DriversLicenseID", drivers_license_id);
+                        cmd.Parameters.AddWithValue("@Code", RandomCode());
+                        cmd.Parameters.AddWithValue("@Extra", "");
+
+                        var result = cmd.ExecuteScalar();
+                        if (result != null)
+                        {
+                            drivers_license_code_id = (Int32)result;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+                }
+
+            }
+            Console.WriteLine("Done initializing database!");
+
+        }
+
+
     }
 
 

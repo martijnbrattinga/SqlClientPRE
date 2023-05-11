@@ -6076,7 +6076,7 @@ namespace Microsoft.Data.SqlClient
 
                             if (command.Connection.IsColumnEncryptionPRESettingTEE)
                             { // Use TEE
-                                Console.WriteLine("PRE backward with TEE");
+                                //Console.WriteLine("PRE backward with TEE");
 
                                 byte[] valueBytes = (byte[])b;
 
@@ -6118,7 +6118,7 @@ namespace Microsoft.Data.SqlClient
                             }
                             else
                             { // PRE without enclave, thus in normal C# execution
-                                Console.WriteLine("PRE backward without TEE (thus normal C#)");
+                                //Console.WriteLine("PRE backward without TEE (thus normal C#)");
 
                                 byte[] unencryptedBytes = SqlSecurityUtility.DecryptWithKey(b, md.cipherMD, _connHandler.Connection, command);
 
@@ -9506,7 +9506,7 @@ namespace Microsoft.Data.SqlClient
 #if NETCOREAPP
                         if (command.Connection.IsColumnEncryptionPRESettingTEE)
                         { // Use TEE to PRE forward
-                            Console.WriteLine("PRE forward with TEE");
+                            //Console.WriteLine("PRE forward with TEE");
                             byte[] valueBytes = (byte[])value;
                             byte[] result_preforward = new byte[1 + 32 + 16 + (valueBytes.Length - (valueBytes.Length % 16))];
 
@@ -9543,7 +9543,7 @@ namespace Microsoft.Data.SqlClient
                         }
                         else
                         {
-                            Console.WriteLine("PRE forward without TEE (thus normal C#)");
+                            //Console.WriteLine("PRE forward without TEE (thus normal C#)");
                             try
                             {
 
