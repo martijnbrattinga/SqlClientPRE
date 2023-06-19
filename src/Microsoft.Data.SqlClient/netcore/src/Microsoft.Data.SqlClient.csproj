@@ -951,7 +951,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Condition="$(TargetGroup) == 'netstandard' and '$(TargetsWindows)' == 'true' and '$(IsUAPAssembly)' != 'true'" Include="Microsoft.Win32.Registry" Version="$(MicrosoftWin32RegistryVersion)" />
-    <PackageReference Include="PREnclave" Version="0.1.26" />
+    <PackageReference Include="PREnclave" Version="0.1.34" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="$(SystemConfigurationConfigurationManagerVersion)" />
     <PackageReference Include="System.Security.Permissions" Version="$(SystemSecurityPermissionsVersion)" />
     <PackageReference Include="System.Security.Principal.Windows" Version="$(SystemSecurityPrincipalWindowsVersion)" />

@@ -6084,23 +6084,29 @@ namespace Microsoft.Data.SqlClient
 #if NETCOREAPP
                                 /*
                                  * Re-using enclave session thus no need to create again
-                                command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
+                                * command.Connection._PREnclave.enclave_session(command.PREEncryptedSymmetricKey, command.PREEncryptedSymmetricIV, command.PREPublicKey);
                                 */
 
-                                // Set db key
-                                if (!md.cipherMD.IsAlgorithmInitialized())
-                                {
-                                    SqlSecurityUtility.DecryptSymmetricKey(md.cipherMD, _connHandler.Connection, command);
-                                }
-                                byte[] rootkey = SqlSecurityUtility.GetKeyFromLocalProviders(md.cipherMD.EncryptionKeyInfo, _connHandler.Connection, command).RootKey;
+                                if(!command.PRETEE_DBKey_set){
+                                    // Set db key
+                                    if (!md.cipherMD.IsAlgorithmInitialized())
+                                    {
+                                        SqlSecurityUtility.DecryptSymmetricKey(md.cipherMD, _connHandler.Connection, command);
+                                    }
+                                    byte[] rootkey = SqlSecurityUtility.GetKeyFromLocalProviders(md.cipherMD.EncryptionKeyInfo, _connHandler.Connection, command).RootKey;
 
-                                // Set database private key in enclave (again, from untrusted = insecure)
-                                int y = command.Connection._PREnclave.enclave_set_key_db_insecure(rootkey);
-                                if (y != 1)
-                                {
-                                    Console.WriteLine("Error setting prenclave database private key: " + y);
-                                    throw new Exception("Error in prenclave backward. Could not set db key.");
+                                    // Set database private key in enclave (again, from untrusted = insecure)
+                                    int y = command.Connection._PREnclave.enclave_set_key_db_insecure(rootkey);
+                                    if (y != 1)
+                                    {
+                                        Console.WriteLine("Error setting prenclave database private key: " + y);
+                                        throw new Exception("Error in prenclave backward. Could not set db key.");
+                                    }
+
+                                    command.PRETEE_DBKey_set = true;
                                 }
+
+                                
 
                                 
 
@@ -6148,6 +6154,8 @@ namespace Microsoft.Data.SqlClient
                                 }
 
 
+                                reencryptedBytes = aes.EncryptCbc(unencryptedBytes, aes.IV);
+                                /*
                                 using (ICryptoTransform encryptor = aes.CreateEncryptor())
                                 {
                                     using (MemoryStream memoryStream = new MemoryStream())
@@ -6160,7 +6168,7 @@ namespace Microsoft.Data.SqlClient
                                         }
 
                                     }
-                                }
+                                }*/
 
 
 
@@ -9598,6 +9606,9 @@ dGhvHz35g4CXp40B9KUTJw ==
                                 byte[] valueBytes = (byte[])value;
                                 byte[] plainValue;
 
+                                //plainValue = aes.DecryptCBC(valueBytes, aes.IV);
+
+                                
                                 using (ICryptoTransform encryptor = aes.CreateDecryptor())
                                 {
                                     using (MemoryStream memoryStream = new MemoryStream())
@@ -9612,6 +9623,9 @@ dGhvHz35g4CXp40B9KUTJw ==
 
                                     }
                                 }
+                                
+
+                                //Console.WriteLine("Plain value bytes: " + plainValue[0] + "," + plainValue[1] + "," + plainValue[2] + "," + plainValue[3]);
 
 
                                 // Re-Encrypt parameter

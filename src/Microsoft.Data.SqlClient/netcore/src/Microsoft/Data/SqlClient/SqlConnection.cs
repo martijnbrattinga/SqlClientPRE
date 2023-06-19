@@ -68,7 +68,7 @@ namespace Microsoft.Data.SqlClient
         // TEE PRE
 #if NETCOREAPP
 #pragma warning disable IDE1006 // Naming Styles
-        internal EnclaveLinkManaged _PREnclave;
+        internal PREnclaveLinkManaged _PREnclave;
 #pragma warning restore IDE1006 // Naming Styles
 #endif
 
@@ -201,7 +201,7 @@ dGhvHz35g4CXp40B9KUTJw ==
 -----END PRIVATE KEY-----
 ";
 
-            _PREnclave = new EnclaveLinkManaged();
+            _PREnclave = new PREnclaveLinkManaged();
 
             RSA rsa = RSA.Create();
             rsa.ImportFromPem(privatekey);
@@ -1304,6 +1304,12 @@ dGhvHz35g4CXp40B9KUTJw ==
             {
                 SqlClientEventSource.Log.TryCorrelationTraceEvent("SqlConnection.Close | API | Correlation | Object Id {0}, Activity Id {1}, Client Connection Id {2}", ObjectID, ActivityCorrelator.Current, ClientConnectionId);
 
+#if NETCOREAPP
+                if(_PREnclave != null){
+                    _PREnclave.Dispose(); // Not sure if this is required or not?
+                }
+
+#endif
                 ConnectionState previousState = State;
                 Guid operationId = default(Guid);
                 Guid clientConnectionId = default(Guid);

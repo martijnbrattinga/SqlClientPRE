@@ -193,6 +193,24 @@ namespace Microsoft.Data.SqlClient
         private byte[] _PRESymmetricKeyCache = null;
         private byte[] _PRESymmetricIVCache = null;
 
+        private bool _PRETEE_DBKey_set = false;
+
+
+        /// <summary>
+        /// Return whether the database private key has been set in the enclave yet for this command
+        /// </summary>
+        public bool PRETEE_DBKey_set
+        {
+            get
+            {
+                return _PRETEE_DBKey_set;
+            }
+            set
+            {
+                _PRETEE_DBKey_set = value;
+            }
+        }
+
         /// <summary>
         /// Return public key used for PRE
         /// </summary>
@@ -322,7 +340,7 @@ namespace Microsoft.Data.SqlClient
             {
                 if ( x == 103)
                 { // We did only set the public key, which in some scenarios is ok
-                    Console.WriteLine("PREnclave: only set public key for this session");
+                    //Console.WriteLine("PREnclave: only set public key for this session");
 
                 }
                 else
